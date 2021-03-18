@@ -1,0 +1,33 @@
+/* Application styles could go here */
+footer .poweredby { float: right; margin: 33px 10px 0 0; padding: 20px;
+    background-color: #efefef; border-radius: 20px; 
+}
+footer .poweredby img { height: 50px; }
+
+.container-fluid {
+  padding-right: 30px;
+  padding-left: 30px;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.label-badge-right {
+    padding: .2em .6em .3em;
+    border-radius: .25em;
+    
+    margin-right: -.8em;
+}
+.label-badge-left {
+    padding: .2em .6em .3em;
+    border-radius: .25em;
+    margin-right: -.2em;
+}
+
+.label-badge{
+    margin:.3em;
+}
+/*.label-badge::after {*/
+    /*margin:8em;*/
+/*    border: 20px;*/
+/*    content:"sdlkfjsd";*/
+/*}*/

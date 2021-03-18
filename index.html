@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<div xmlns="http://www.w3.org/1999/xhtml" data-template="templates:surround" data-template-with="templates/page.html" data-template-at="content">
+    <div data-template="app:init-data">
+        
+        <div class="row">
+            <div class="col-md-5">
+                <h1 data-template="config:app-title">Generated page</h1>
+                <div class=" alert alert-success">
+                    <p data-template="app:summary"/>
+                </div>
+            </div>
+            
+            <div class="col-md-7 page-header">
+                <h3>Public lists on ADS:</h3>
+                <p data-template="app:olbin-ads-lists"/>
+            </div>
+        </div>
+
+        <div>
+            <h2>Some rules for OLBIN publication selection:</h2>
+            <p>
+                <ul>
+                <li>Publications only are refereed ones</li>
+                <li>Some refereed journals are sorted out even if ADS tags them as refereed ones : <ul class="list-inline">
+                            <li data-template="app:filtered-journals"/>
+                        </ul>
+                    </li>
+                <li>TBC...</li>
+            </ul> </p>
+        </div>
+        
+        
+        
+        <div>
+            <h2>Some hints to take advandage of great ADS:</h2>
+            <ul>
+                <li>You can be notified for any prepared list. Visit the proper list link on ADS site and click '<i class="glyphicon glyphicon-bell"/> Create email notification'.</li>
+                <li>You can take advantage of export/vizualisation on ADS for a given list or combination. You can limit to period of time, most cited or read papers.</li>
+                <li>use query operators to check for citations of a given list... e.g. <a data-template="app:olbin-ads-sample-citation-link"/>
+                </li>
+                <li>Probably much more advanced ones... </li>
+            </ul>
+            And if you want some adjustments, add some hints or help to contribute to catch missing articles, please contact the <a href="http://www.jmmc.fr/support">jmmc-user-support</a> so you get permissions to feed lists on ADS portal.
+        </div>
+        
+        <div>
+            <h2>Olbin publications's Tags:</h2>
+            <p data-template="app:olbin-tag-lists"/>
+        </div>
+    </div>
+</div>

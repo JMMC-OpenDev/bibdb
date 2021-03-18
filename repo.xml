@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<meta xmlns="http://exist-db.org/xquery/repo">
+    <description>OLBIN publications database</description>
+    <author>G. Mella</author>
+    <website/>
+    <status>alpha</status>
+    <license>GNU-LGPL</license>
+    <copyright>true</copyright>
+    <type>application</type>
+    <target>bibdb</target>
+    <prepare>pre-install.xql</prepare>
+    <finish/>
+
+<deployed>2020-11-05T07:50:19.093Z</deployed>
+</meta>
