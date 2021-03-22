@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<div xmlns="http://www.w3.org/1999/xhtml" data-template="templates:surround" data-template-with="templates/page.html" data-template-at="content">
+        
+    <div data-template="app:init-data">
+        <div>
+            <h2>Author publications:</h2>
+            <div data-template="templates:if-parameter-set" data-template-param="author">
+                <p data-template="app:author-references"/>
+            </div>
+            <div data-template="templates:if-parameter-unset" data-template-param="author">
+            <form>
+            <input size="80" name="author" placeholder="JMMC author so we select her publications and citations"/>
+            </form>
+            </div>
+        </div>
+    </div>
+</div>

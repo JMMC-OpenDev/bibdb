@@ -45,7 +45,7 @@ declare function app:retrieve-ads() {
 };
 
 declare function app:init-data($node as node(), $model as map(*)) {
-    let $log := util:log("info", "logged as "|| serialize(sm:id()))
+(:    let $log := util:log("info", "logged as "|| serialize(sm:id())):)
     let $xml := app:get-olbin()
     let $bibcodes := $xml//bibcode
     (: Why ?   let $retrieve-ads := app:retrieve-ads():)
@@ -261,6 +261,8 @@ declare function app:jmmc-references($node as node(), $model as map(*)) {
             
             let $ol := for $record in $records
                 let $bibcode := adsabs:get-bibcode($record)
+                let $year := adsabs:get-pub-date($record)
+                order by $year descending
 (:                let $citations := adsabs:get-refereed-citations($bibcode):)
 (:                let $missing-citations := :)
 (:                    for $c in $citations order by $c where not($c=($olbin-bibcodes, $non-interfero-bibcodes)) :)
@@ -324,9 +326,9 @@ declare function app:jmmc-non-interfero($node as node(), $model as map(*)){
         let $q1:=<li>{$big-query}</li>
         
         (: The the big query behind:)
-        let $big-q := "property:refereed full:(VLTI or CHARA)"
+        let $big-q := "property:refereed full:(VLTI or CHARA or LBTI)"
         let $big-query := adsabs:get-query-link($big-q,<b data-trigger="hover" data-toggle="popover" data-original-title="{$big-q}" data-content="">VLTI or CHARA in full text</b>)
-        let $big-q := $big-q ||" - abs:(VLTI or CHARA)"
+        let $big-q := $big-q ||" - abs:(VLTI or CHARA or LBTI)"
 (:        let $big-query := ( $big-query, " ", adsabs:get-query-link($big-q,<span data-trigger="hover" data-toggle="popover" data-original-title="This query" data-content="exclude the one with abs query"> - VLTI or CHARA in abstracts/title/keywords </span>) ):)
         let $big-q := $big-q || " - " || $olbin-refereed-q
 (:        let $big-query := ( $big-query, " ", adsabs:get-query-link($big-q,<span data-trigger="hover" data-toggle="popover" data-original-title="This query" data-content="exclude OLBIN LIST of the preivous one"> - olbin-refereed</span>) ):)
@@ -381,5 +383,132 @@ declare function app:is-blacklisted($bibcode){
 
 
 
+declare function app:author-references($node as node(), $model as map(*), $author as xs:string*) {
+    
+    let $jmmc-groups := $app:jmmc-doc//group[@tag]
+    let $jmmc-groups-bibcodes := data($jmmc-groups/bibcode)
+    
+    let $jmmc-papers-bibcodes := data(adsabs:library-get-bibcodes($app:LIST-JMMC-PAPERS))
+    let $base-query := "( " || string-join( ($app:jmmc-doc/jmmc/query) , " or " ) || " ) "
+    
+    let $groups := 
+        for $group in $jmmc-groups
+            let $tag := data($group/@tag)
+            let $records := adsabs:get-records($group/bibcode)
+            
+            let $q := string-join($group/bibcode , " or ")
+            let $q := if($q) then "( citations(identifier:("||$q||")) )" else ()
+            let $citations-link := if($q) then adsabs:get-query-link($q,"view all citations on ADS") else ()
+            let $q := string-join((data($q), "( " || $base-query || ' and full:"' || lower-case($group/@tag) ||'" )' )," or ")
+            let $citations-link := ($citations-link, adsabs:get-query-link($q," + keywords "))
+            
+            let $ol := for $record in $records
+                let $authors := adsabs:get-authors($record)
+                where $authors[contains( ., $author, "?lang=en-US&amp;strength=primary")] 
+                let $bibcode := adsabs:get-bibcode($record)
+                let $year := adsabs:get-pub-date($record)
+                order by $year descending
+                return
+                    <li>{adsabs:get-html($record, 3),<br/>,string-join(("",adsabs:get-doi($record)), "DOI: ") }</li>
+            let $show-citations := ( $ol or $tag = ("OImaging", "OIFitsExplorer", "") ) and not($tag=("Others"))
+            
+            let $cit-records := if($show-citations) then
+                let $bibcodes := adsabs:search($q, "bibcode")?response?docs?*?bibcode
+                return adsabs:get-records($bibcodes[not (.=$group/bibcode)])
+                else
+                    ()
+            let $cit-ol := for $record in $cit-records
+                let $authors := adsabs:get-authors($record)
+                let $bibcode := adsabs:get-bibcode($record)
+                let $year := adsabs:get-pub-date($record)
+                order by $year descending
+                return
+                    <li>{adsabs:get-html($record, 3)}</li>
+                    
+            let $title := $group/description
+        return if($ol or $cit-ol) then
+                <div>
+                
+                <h2>Concepteur et responsable <b data-toggle="popover" data-trigger="hover" data-original-title="{$title}" data-content="">{$tag}</b> :</h2>
+                {if ($ol) then <div><h3>Co-auteur des publications {$tag}</h3><ul>{$ol}</ul></div> else ()}
+                {if ($cit-ol) then <div><h3>Publications citant le logiciel:</h3><ol>{$cit-ol}</ol></div> else ()}
+                </div>
+                else ()
+    
+    let $groups := $groups[name()="div"]
+        
+    return (<ul class="list-group">{$groups}</ul>)
+};
 
 
+declare function app:search-cats($node as node(), $model as map(*)) {
+    <ul class="list-inline">
+        {
+            for $g in $app:jmmc-doc//group[@tag] return <li>{data($g/@tag)}</li>
+        }
+    </ul>
+};
+
+declare function app:search-cats-analysis($node as node(), $model as map(*)) {
+let $jmmc-groups := $app:jmmc-doc//group[@tag and not(@tag='Others')]
+    let $jmmc-groups-bibcodes := data($jmmc-groups/bibcode)
+    
+    let $olbin-doc := app:get-olbin()
+    let $olbin-bibcodes := data($olbin-doc//bibcode) (: could be ads list ? :)
+    let $non-interfero-bibcodes := data(adsabs:library-get-bibcodes($app:LIST-NON-INTERFERO))
+    let $blacklist-bibcodes := data(adsabs:library-get-bibcodes($app:LIST-OLBIN-BLACKLIST))
+    let $jmmc-papers-bibcodes := data(adsabs:library-get-bibcodes($app:LIST-JMMC-PAPERS))
+    
+    let $olbin-refereed-q := adsabs:library-get-search-expr($app:LIST-OLBIN-REFEREED)
+    let $non-interfero-q := adsabs:library-get-search-expr($app:LIST-NON-INTERFERO)
+    let $blacklist-q := "( " || adsabs:library-get-search-expr($app:LIST-OLBIN-BLACKLIST) || " OR bibstem:(" || string-join($adsabs:filtered-journals, " OR ") || ") )"
+
+    let $missing-jmmc-papers-bibcodes := $jmmc-groups-bibcodes[not(.=$jmmc-papers-bibcodes)]
+    let $missing-jmmc-papers := if(exists($missing-jmmc-papers-bibcodes)) then "identifier:("|| string-join($missing-jmmc-papers-bibcodes, ' or ')||")" else ()
+    let $missing-jmmc-papers := if($missing-jmmc-papers) then adsabs:get-query-link($missing-jmmc-papers,"Please add next jmmc-papers in ADS or move out xmldb") else ()
+
+
+    let $missing-in-groups := for $record in adsabs:get-records($jmmc-papers-bibcodes[not(.=$jmmc-groups-bibcodes)]) return <li>&lt;!--{adsabs:get-title($record)}--&gt;<br/>{ serialize(<bibcode>{adsabs:get-bibcode($record)}</bibcode>)} </li>
+    let $missing-in-groups := if($missing-in-groups) then <div><h4>ADS jmmc-papers not present in local db</h4><ul> {$missing-in-groups}</ul></div> else ()
+    
+    let $base-query := " property:refereed - " || $olbin-refereed-q || " - " || $blacklist-q
+    let $jmmc-query := " ( " || string-join( ($app:jmmc-doc/jmmc/query) , " or " ) || " ) "
+    
+    let $groups := map:merge((
+        for $group in $jmmc-groups
+            let $tag := data($group/@tag)
+            let $q := string-join($group/bibcode , " or ")
+            let $q := if($q) then "( citations(identifier:("||$q||")) )" else ()
+            let $q := string-join((data($q), "( " || $jmmc-query || ' and full:"' || lower-case($group/@tag) ||'" )' )," or ")
+            let $q := $q || $base-query
+            return
+                map:entry($tag, map{"q":$q , "bibcodes":adsabs:search($q, "bibcode")?response?docs?*?bibcode, "color":"warning" })
+        ,        
+        for $tag  in ("VLTI", "CHARA", "LBTI")
+            let $q := "abs:'"|| $tag || "'"
+            let $q := $q || $base-query
+            return
+                map:entry($tag, map{"q":$q , "bibcodes":adsabs:search($q, "bibcode")?response?docs?*?bibcode, "color":"success" })
+        ))
+    
+    let $group-list := <ul> {map:for-each( $groups, function ($key, $value) { <li><b>{$key}</b> : {$value("q")} <br/> {count($value("bibcodes"))} </li> } ) } </ul>
+    
+    (: pre-load in a single stage :)
+    let $bibcodes := distinct-values($groups?*?bibcodes)
+    let $records := adsabs:get-records($bibcodes)
+    
+    let $by-bib-list := for $bibcode in $bibcodes order by $bibcode descending
+    let $record := adsabs:get-records($bibcode)
+    return 
+        <li>{adsabs:get-html($record, 3)}
+            <ul>
+                { 
+                    for $t in map:keys($groups) 
+                    return 
+                        if ( $groups($t)?bibcodes[. = $bibcode] ) then ("&#160;", <span class="label label-{$groups($t)?color}">{data($t)}</span>) else ()
+                }
+            </ul>
+        </li>
+    
+    return ( <h2>{count($by-bib-list)} publications to filter and review</h2>, <ol>{$by-bib-list}</ol> )
+};
