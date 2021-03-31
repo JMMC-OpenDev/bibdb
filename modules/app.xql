@@ -476,7 +476,7 @@ let $jmmc-groups := $app:jmmc-doc//group[@tag and not(@tag='Others')]
     let $missing-in-groups := for $record in adsabs:get-records($jmmc-papers-bibcodes[not(.=$jmmc-groups-bibcodes)]) return <li>&lt;!--{adsabs:get-title($record)}--&gt;<br/>{ serialize(<bibcode>{adsabs:get-bibcode($record)}</bibcode>)} </li>
     let $missing-in-groups := if($missing-in-groups) then <div><h4>ADS jmmc-papers not present in local db</h4><ul> {$missing-in-groups}</ul></div> else ()
     
-    let $base-query := " property:refereed - " || $olbin-refereed-q || " - " || $blacklist-q || " "
+    let $base-query := " property:refereed - " || $olbin-refereed-q || " - " || $blacklist-q ||" - " || $non-interfero-q || " "
     let $jmmc-query := " ( " || string-join( ($app:jmmc-doc/jmmc/query) , " or " ) || " ) "
     
     let $groups := map:merge((
@@ -493,7 +493,7 @@ let $jmmc-groups := $app:jmmc-doc//group[@tag and not(@tag='Others')]
                 map:entry($tag, map{"q":$q, "cit-q":$cit-q, "full-q":$full-q, "bibcodes":$res?response?docs?*?bibcode, "numFound":$res?response?numFound, "color":"warning"} )
         ,        
         for $tag  in ("VLTI", "CHARA", "LBTI")
-            let $q := "abs:'"|| $tag || "'"
+            let $q := "full:'"|| $tag || "'"
             let $sub-q := $q
             let $q := $q || $base-query
             let $res := adsabs:search($q, "bibcode")
