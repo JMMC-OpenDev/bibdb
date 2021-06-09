@@ -29,6 +29,8 @@ declare function local:check-update($list-name, $bibcodes as xs:string*){
             ($update-a, $update-r,$list-name || " need sync (olbin db:" || count($bibcodes) || ", ads:" ||  $num_documents|| ") : missing are "|| string-join($missings, " OR ") || ", outdated are "|| string-join($outdated, " OR ") )
 };
 
+let $clear-olbin := cache:remove($app:expirable-cache-name, "olbin-xml")
+let $clear-ads := cache:clear($adsabs:expirable-cache-name)
 let $entries :=  app:get-olbin()//e
 let $bibcodes := $entries//bibcode
 let $existing-lib-names := data(adsabs:get-libraries(false())?libraries?*?name)
@@ -68,17 +70,17 @@ let $res := ($res, if($existing-lib-names='telbib-vlti') then () else adsabs:cre
 let $res := ($res , local:check-update("telbib-vlti", $telbibcodes))
  
 
-(:let $res := ($res , local:check-update("olbin-refereed", $bibcodes)):)
-(::)
-(:let $res := ( $res, for $tag in app:get-olbin()/publications/tag:)
-(:        let $bibcodes := $entries[tag=$tag]/bibcode:)
-(:        let $list-name := "tag-olbin "||$tag:)
-(:        where $list-name = $existing-lib-names:)
-(:        return local:check-update($list-name, $bibcodes):)
-(:    ):)
-(:    :)
-(:let $clear-libraries := cache:remove($adsabs:expirable-cache-name, "/biblib/libraries"):)
-(:let $ask-again := adsabs:get-libraries():)
+let $res := ($res , local:check-update("olbin-refereed", $bibcodes))
+
+let $res := ( $res, for $tag in app:get-olbin()/publications/tag
+        let $bibcodes := $entries[tag=$tag]/bibcode
+        let $list-name := "tag-olbin "||$tag
+        where $list-name = $existing-lib-names
+        return local:check-update($list-name, $bibcodes)
+    )
+    
+let $clear-libraries := cache:remove($adsabs:expirable-cache-name, "/biblib/libraries")
+let $ask-again := adsabs:get-libraries()
 
 return $res
 

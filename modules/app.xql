@@ -35,6 +35,7 @@ declare function app:get-olbin(){
             let $doc := doc("http://apps.jmmc.fr/bibdb/xml")
 (:            let $store := xmldb:store($config:data-root, "olbin.xml", $doc) :)
             let $store := cache:put($app:expirable-cache-name, "olbin-xml", $doc)
+            let $log  := util:log("info", "olbin-xml updated")
             return $doc
 };
 
@@ -188,7 +189,7 @@ declare function app:check-updates($node as node(), $model as map(*)) {
                 </div>
             )
             else
-                () (: We are uptodate :)
+                util:log("info", "we seems uptodate")
         else () (: nothing to do : next call will come later, this avoid 2 calls instead of 1 :)
 };
 
@@ -455,6 +456,8 @@ declare function app:search-cats($node as node(), $model as map(*)) {
 };
 
 declare function app:search-cats-analysis($node as node(), $model as map(*)) {
+    let $refresh := app:check-updates($node, $model)
+    
 let $jmmc-groups := $app:jmmc-doc//group[@tag and not(@tag='Others')]
     let $jmmc-groups-bibcodes := data($jmmc-groups/bibcode)
     
@@ -510,21 +513,22 @@ let $jmmc-groups := $app:jmmc-doc//group[@tag and not(@tag='Others')]
     
     let $by-bib-list := for $bibcode in $bibcodes order by $bibcode descending
         let $record := adsabs:get-records($bibcode)
+        let $tags := for $t in map:keys($groups) return if ( $groups($t)?bibcodes[. = $bibcode] ) then $t else ()
+        let $labels := $tags ! ( <li><span class="label label-{$groups(.)?color}">{data(.)}</span></li> )
+        let $olbin-add-link := "http://jmmc.fr/bibdb/addPub.php?bibcode=" || encode-for-uri($bibcode) || string-join(("", (for $t in $tags return "tag[]="||$t )), "&amp;") 
         return 
             <li>{adsabs:get-html($record, 3)}
-                <ul>
-                    { 
-                        for $t in map:keys($groups) 
-                        return 
-                            if ( $groups($t)?bibcodes[. = $bibcode] ) then ("&#160;", <span class="label label-{$groups($t)?color}">{data($t)}</span>) else ()
-                    }
+                <ul class="list-inline">
+                    <li><a target="_blank" href="{$olbin-add-link}">Add article to OLBIN</a>&#160;</li>
+                    { $labels }
                 </ul>
             </li>
+            
     let $jmmc-tags-query := $jmmc-query || " and ( " || 
         string-join( ( ($groups?*?full-q) ! concat( '(', ., ')' ) ) , " or ")
         || " ) "
     
     let $global-query := $base-query || string-join(( $groups?*?tag-q, $groups?*?cit-q , $jmmc-tags-query), " or ")
-    let $global-link := adsabs:get-query-link($global-query , "View this list on ADS")
-    return ( $group-list, <h2>{count($by-bib-list)} publications to filter and review ({$global-link})</h2>,  <ol>{$by-bib-list}</ol> )
+    let $global-link := adsabs:get-query-link($global-query , "View this list on ADS", "sort=bibcode")
+    return ( $refresh, $group-list, <h2>{count($by-bib-list)} publications to filter and review ({$global-link})</h2>,  <ol>{$by-bib-list}</ol> )
 };
