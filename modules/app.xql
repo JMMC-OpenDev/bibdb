@@ -121,7 +121,7 @@ declare function app:olbin-ads-sample-citation-link($node as node(), $model as m
     let $id := adsabs:get-libraries()?libraries?*[?public=true() and ?name[.="olbin-refereed"] ]?id
     let $l := "docs(library/"||$id||")"
     let $queries := [()
-        ,[("Which impact of OLBIN outside its own field ?" , "property:refereed citations("||$l||") - "||$l)]
+        ,[("Which impact of OLBIN outside its own field ?" , "property:refereed references("||$l||") - "||$l)]
         ,[("Are these bibcodes in OLBIN ?" , '(2020Natur.584..547G OR 1984vlti.conf..603L) '||$l)]
         ,[("Are these bibcodes in OLBIN (safer query)?" , 'bibcode:("2020Natur.584..547G" OR "1984vlti.conf..603L") '||$l)]
         ,[("Which one is not in OLBIN ?" , 'bibcode:("2020Natur.584..547G" OR "1976Rech....7..910B") - '||$l)]
@@ -156,41 +156,69 @@ declare function app:summary($node as node(), $model as map(*)) {
 };
 
 
+
 declare function app:others-lists($node as node(), $model as map(*)) {
     let $jmdc-csv-libname := 'jmdc-csv'
+    let $jmdc-csv-interfero-libname := 'jmdc-csv-interfero'
     
     let $jmdc-csv := cache:get($app:expirable-cache-name,$jmdc-csv-libname)
     let $jmdc-csv := if ($jmdc-csv) then $jmdc-csv else (
         cache:put($app:expirable-cache-name,$jmdc-csv-libname,tail(hc:send-request( <hc:request href="http://jmdc.jmmc.fr/export_csv" method="GET"/> ))),
         cache:get($app:expirable-cache-name,$jmdc-csv-libname)
         )
-    let $jmdc-bibcodes:= distinct-values( for $line in tokenize($jmdc-csv, "&#10;")[position()>1] return translate(tokenize($line, ",")[last()-1], '"', '') )
+        
+    let $headers := tokenize(substring-before($jmdc-csv, "&#10;")[1], ",") ! translate(. , '"', '')
+    let $csv-lines := tokenize($jmdc-csv, "&#10;")[position()>1]
+        
+    let $jmdc-bibcodes:= distinct-values( for $line in $csv-lines return translate(tokenize($line, ",")[last()-1], '"', '') )
     let $jmdc-bibcodes:= $jmdc-bibcodes[not(contains(., "............"))]
+    
+    let $jmdc-interfero-bibcodes:= distinct-values( 
+            for $line in $csv-lines
+            let $els := tokenize($line, ",")
+            let $method := $els[index-of($headers, "METHOD")]
+            where contains($method, ("1","3"))
+                let $bib := translate($els[last()-1], '"', '') 
+                return $bib
+            )[not(contains(., "............"))]
     
     let $fresh-libraries := adsabs:get-libraries(false())
     let $existing-lib-names := data($fresh-libraries?libraries?*?name)
     let $create-if-missing := if($existing-lib-names=$jmdc-csv-libname) then () else adsabs:create-library($jmdc-csv-libname, "Extract from jmdc.jmmc.fr.", true(), () ) 
-    let $check-update := app:check-update($fresh-libraries, $jmdc-csv-libname, $jmdc-bibcodes)
+    let $create-if-missing := if($existing-lib-names=$jmdc-csv-interfero-libname) then () else adsabs:create-library($jmdc-csv-interfero-libname, "Extract from jmdc.jmmc.fr / only method 1 and 3.", true(), () ) 
+    let $check-update := app:check-update($fresh-libraries, $jmdc-csv-libname, $jmdc-bibcodes, true())
+    let $check-update := app:check-update($fresh-libraries, $jmdc-csv-interfero-libname, $jmdc-interfero-bibcodes, true())
     
     let $q1 := adsabs:library-query($jmdc-csv-libname)
-    let $q2 := $q1 || " " || adsabs:library-query($app:LIST-OLBIN-REFEREED)
-    let $q3 := $q1 || " - " || adsabs:library-query($app:LIST-OLBIN-REFEREED)
+    let $q2 := adsabs:library-query($app:LIST-OLBIN-REFEREED) || " " || $q1
+    let $q3 := " - " || $q2
 
-    
+    let $q11 := adsabs:library-query($jmdc-csv-interfero-libname)
+    let $q12 := adsabs:library-query($app:LIST-OLBIN-REFEREED) || " " || $q11
+    let $q13 := " - " || $q12
+    let $q14 := adsabs:library-query("tag-olbin Stellar diameters") || " " || $q11
+    let $q15 := " - " || $q14
+
     
     return 
     <div>
         <h1>JMDC</h1>
-        <p> {count($jmdc-bibcodes)} bibcodes extracted from jmdc.jmmc.fr:
-            <ul>
-                <li>{adsabs:get-query-link($q1,"All JMDC reference papers")}<br/>{$q1}</li>
-                <li>{adsabs:get-query-link($q2,"JMDC reference papers part of Olbin")}</li>
-                <li>{adsabs:get-query-link($q3,"JMDC reference papers not part of Olbin")}</li>
+        <p> extracted from jmdc.jmmc.fr:
+        <ul>
+                <li>{adsabs:get-query-link($q1,"All JMDC reference papers")} : {count($jmdc-bibcodes)} bibcodes 
+                    <ul><li> {adsabs:get-query-link($q2," part of Olbin")}</li><li> {adsabs:get-query-link($q3," not part of Olbin")}</li></ul>
+                </li>
+                <li>{adsabs:get-query-link($q11,"JMDC reference papers from optical interferometry or intensity interferometry methods")} : {count($jmdc-interfero-bibcodes)} bibcodes 
+                    <ul><li> {adsabs:get-query-link($q12," part of Olbin")}</li><li> {adsabs:get-query-link($q13," not part of Olbin")}</li></ul>
+                    <ul><li> {adsabs:get-query-link($q14," part of Olbin.Stellar diameters")}</li><li> {adsabs:get-query-link($q15," not part of Olbin.Stellar diameters")}</li></ul>
+                </li>
             </ul>
             <em>Note: bibcodes with ............ are filtered out</em>
         </p>
     </div>
 };
+
+
 declare function app:jmmc-summary($node as node(), $model as map(*)) {
     <p>Welcome on the JMMC publications management area.<br/>
         {app:badge("OLBIN", map:get($model,"olbin-nb-pubs"), $app:OLBIN-COLOR)} last update : <em>{map:get($model,"date-last-olbin-update")}</em>,
@@ -294,7 +322,6 @@ declare function app:jmmc-references($node as node(), $model as map(*)) {
             let $ads-lib-count := data(adsabs:get-libraries()?libraries?*[?name="tag-olbin "||$tag ]?num_documents)
             let $badges :=  (app:badge("OLBIN",count($olbin-doc//e/tag[.=$tag]),$app:OLBIN-COLOR),if ($ads-lib-count) then app:badge("ADS",$ads-lib-count,$app:ADS-COLOR) else ())
                 
-            
             let $ol := for $record in $records
                 let $bibcode := adsabs:get-bibcode($record)
                 let $year := adsabs:get-pub-date($record)
@@ -342,28 +369,35 @@ declare function app:jmmc-references($node as node(), $model as map(*)) {
 };
 
 declare function app:get-interferometers(){
-    (
-    "CHARA",
-(:    "COAST",:)
-(:    "GI2T",:)
-    "Hypertelescope",
-    "I2T",
-(:    "IACT",:)
-    "IOTA",
-(:    "IRMA",:)
-(:    "ISI",:)
-(:    "Keck",:)
-    "LBTI",
-(:    "Mark III",:)
-    "NPOI",
-(:    "Narrabri Stellar Intensity Interferometer",:)
-    "Narrabri Intensity",
-    "PTI",
-(:    "SIM",:)
-    "SUSI",
-    "VLTI"
-    )
+    
+(:    map:merge(for $e in sort(data(app:get-olbin()//categories/category[name="Facility"]/tag)) return map{$e:$e} ) :)
+    let $interferometers := 
+    map {
+    "CHARA": "CHARA",
+    "COAST": "COAST",
+    "GI2T": "GI2T",
+    "HYPERTELESCOPES": ("HYPERTELESCOPES","Hypertelescope"),
+    "I2T": "I2T",
+    "IACT": "Imaging Atmospheric Cherenkov Telescopes",
+    "IOTA": "IOTA",
+    "IRMA": "IRMA",
+   "ISI ": "ISI ",
+    "Keck": "Keck  Interferometer",
+    "LBTI": "LBTI",
+    "Mark III": "Mark III",
+    "Narrabri Stellar Intensity Interferometer": ("Narrabri Stellar Intensity Interferometer", "Narrabri Intensity"),
+    "NPOI": "NPOI",
+    "PTI": "PTI",
+(:    "SIM": "SIM",:)
+    "SUSI": "SUSI",
+    "Tcherenkov telescopes": "Tcherenkov telescopes",
+    "VLTI": "VLTI"
+    }
+
+
+    return $interferometers
 };
+
 declare function app:jmmc-non-interfero($node as node(), $model as map(*)){
    <div>
         <h2>Helpers to catch OLBIN papers ( pour Alain! )</h2>
@@ -372,7 +406,7 @@ declare function app:jmmc-non-interfero($node as node(), $model as map(*)){
         let $non-interfero-q := adsabs:library-get-search-expr($app:LIST-NON-INTERFERO)
         let $blacklist-q := "( " || adsabs:library-get-search-expr($app:LIST-OLBIN-BLACKLIST) || " OR bibstem:(" || string-join($adsabs:filtered-journals, " OR ") || ") )"
         
-        let $interferometers :=  ( app:get-interferometers() ! concat('"',.,'"') => string-join(" or ") ) ! concat('(',.,')')
+        let $interferometers :=  ( map:for-each(app:get-interferometers(), function($k,$v) { $v}) ! concat('"',.,'"') => string-join(" or ") ) ! concat('(',.,')')
         
         (: The the big query behind:)
         let $big-q := "property:refereed abs:"||$interferometers
@@ -387,7 +421,7 @@ declare function app:jmmc-non-interfero($node as node(), $model as map(*)){
         let $q1:=<li>{$big-query}</li>
         
         (: The the big query behind:)
-        let $big-q := "property:refereed full:" || $interferometers
+        let $big-q := "property:refereed =full:" || $interferometers
         let $big-query := adsabs:get-query-link($big-q,<b data-trigger="hover" data-toggle="popover" data-original-title="{$big-q}" data-content="">Interferometer names in full text</b>)
         let $big-q := $big-q ||" - abs:(VLTI or CHARA or LBTI or NPOI)"
 (:        let $big-query := ( $big-query, " ", adsabs:get-query-link($big-q,<span data-trigger="hover" data-toggle="popover" data-original-title="This query" data-content="exclude the one with abs query"> - VLTI or CHARA in abstracts/title/keywords </span>) ):)
@@ -511,7 +545,7 @@ declare function app:search-cats($node as node(), $model as map(*)) {
 };
 
 declare function app:search-cats-analysis($node as node(), $model as map(*)) {
-    let $sync-lists := app:sync-lists()
+    let $sync-lists := try {app:sync-lists()} catch * {()}
     let $refresh := app:check-updates($node, $model)
     
     let $log := util:log("info","app:search-cats-analysis()/1")
@@ -562,13 +596,14 @@ let $log := util:log("info","app:search-cats-analysis()/4")
         ,        
         util:log("info","app:search-cats-analysis()/6")
         ,
-        for $tag  in app:get-interferometers() 
-            let $q := "full:'"|| $tag || "'"
+        map:for-each(app:get-interferometers(), function ($tag, $q){
+            let $q := '=full:('|| string-join($q ! concat('"',.,'"'), " OR ") || ')'
             let $sub-q := $q
             let $q := $q || $base-query
             let $res := adsabs:search($q, "bibcode")
             return
                 map:entry($tag, map{"q":$q , "tag-q":$sub-q, "bibcodes":$res?response?docs?*?bibcode, "numFound":$res?response?numFound, "color":"success" })
+            })
         ))
         
     let $log := util:log("info","app:search-cats-analysis()/7")
@@ -582,7 +617,7 @@ let $log := util:log("info","app:search-cats-analysis()/4")
     
     let $log := util:log("info","app:search-cats-analysis()/8")
     
-    let $by-bib-list := for $bibcode in $bibcodes order by $bibcode descending
+    let $by-bib-list := for $bibcode in subsequence($bibcodes,1,50) order by $bibcode descending
         let $record := adsabs:get-records($bibcode)
         let $tags := for $t in map:keys($groups) return if ( $groups($t)?bibcodes[. = $bibcode] ) then $t else ()
         let $labels := $tags ! ( <li><span class="label label-{$groups(.)?color}">{data(.)}</span></li> )
@@ -607,21 +642,25 @@ let $log := util:log("info","app:search-cats-analysis()/4")
     let $global-link := adsabs:get-query-link($global-query , "View this list on ADS", "sort=bibcode")
     
     let $log := util:log("info","app:search-cats-analysis()/11")
-    return ( $refresh, $group-list, <h2>{count($by-bib-list)} publications to filter and review ({$global-link})</h2>,  <ol>{$by-bib-list}</ol> )
+    return ( $refresh, $group-list, <h2>{count($by-bib-list)}/{count($bibcodes)} publications to filter and review ({$global-link})</h2>,  <ol>{$by-bib-list}</ol> )
 };
+
+
+
 (:  to avoid massive updates we can just compute list counts and update differences only  :)
-declare function app:check-update($libraries, $list-name, $bibcodes as xs:string*){
+declare function app:check-update($libraries, $list-name, $bibcodes as xs:string*, $skip-cache-flush as xs:boolean){
     let $ads-list := $libraries?libraries?*[?name=$list-name]
     let $num_documents := number($ads-list?num_documents)
     let $count := number(count($bibcodes))
     let $log  := util:log("info", string-join(("check-updates for",$list-name, "got", $num_documents, "vs", $count)," " ))
     let $do-update := if( $count = $num_documents ) then false() else true()
-    let $log  := util:log("info", string-join(("do it ?",$do-update)," " ))
     return 
         if ( count($bibcodes)=$num_documents ) 
         then ()
 (:        $list-name || " uptodate" :)
-        else 
+        else
+            let $log := if( $skip-cache-flush ) then () else util:log("info", "changed required => clear adsabs cache")
+            let $clear-cache :=  if( $skip-cache-flush ) then () else cache:clear($adsabs:expirable-cache-name)
             let $id := $ads-list?id
             let $ads-bibcodes:= data(adsabs:search("docs(library/"||$id||")", "bibcode")?response?docs?*?bibcode)
             let $missings := $bibcodes[not(.=$ads-bibcodes)]
@@ -634,9 +673,9 @@ declare function app:check-update($libraries, $list-name, $bibcodes as xs:string
 };
 
 declare function app:sync-lists(){
-    
 let $clear-olbin := cache:remove($app:expirable-cache-name, "olbin-xml")
-let $clear-ads := cache:clear($adsabs:expirable-cache-name)
+
+let $force-clear := if(true()) then cache:clear($adsabs:expirable-cache-name) else ()
 
 let $entries :=  app:get-olbin()//e
 let $bibcodes := $entries//bibcode
@@ -645,9 +684,11 @@ let $existing-lib-names := data($fresh-libraries?libraries?*?name)
 
 let $res := () (: stack results :)
 
+let $main-updates := app:check-update($fresh-libraries, "olbin-refereed", $bibcodes, false())
+
+let $res := ($res , $main-updates)
 
 (: Perform lazy creation :)
-
 let $res := ($res, 
     for $tag in app:get-olbin()//publications/tag[ not( . = ("Narrabri Stellar Intensity Interferometer") ) ]
     let $bibcodes := $entries[tag=$tag]/bibcode
@@ -676,16 +717,14 @@ let $telbibcodes := doc($app:telbib-vlti-url)//bibcode
 let $res := ($res, if($existing-lib-names='telbib-vlti') then () else adsabs:create-library("telbib-vlti", "Extract from telbib.", true(), () ) )
 
 (:  now that every list is present, do update them  :)
-let $res := ($res , app:check-update($fresh-libraries, "telbib-vlti", $telbibcodes))
+let $res := ($res , app:check-update($fresh-libraries, "telbib-vlti", $telbibcodes, false()))
  
-
-let $res := ($res , app:check-update($fresh-libraries, "olbin-refereed", $bibcodes))
 
 let $res := ( $res, for $tag in app:get-olbin()/publications/tag
         let $bibcodes := $entries[tag=$tag]/bibcode
         let $list-name := "tag-olbin "||$tag
         where $list-name = $existing-lib-names
-        return app:check-update($fresh-libraries, $list-name, $bibcodes)
+        return app:check-update($fresh-libraries, $list-name, $bibcodes, false())
     )
     
 let $clear-libraries := cache:remove($adsabs:expirable-cache-name, "/biblib/libraries")
