@@ -10,6 +10,10 @@ import module namespace jmmc-auth="http://exist.jmmc.fr/jmmc-resources/auth";
 (:declare variable $app:olbin-doc := doc($config:data-root||"/olbin.xml"); replace by app:get-olbin:)
 declare variable $app:jmmc-doc := doc($config:data-root||"/jmmc.xml");
 declare variable $app:blacklist-doc := doc($config:data-root||"/blacklists.xml");
+(:declare variable $app:journal-names-doc := doc($config:data-root||"/journal-names.xml");:)
+ declare variable $app:journal-names-doc := doc("/db/apps/bibdb-data/data/journal-names.xml");
+(: declare variable $app:ads-journals := doc($config:data-root||"/ads-journals.xml")//journal;:)
+ declare variable $app:ads-journals := doc("/db/apps/bibdb-data/data/ads-journals.xml")//journal;
 
 
 declare variable $app:LIST-JMMC-PAPERS  := "jmmc-papers";
@@ -65,6 +69,81 @@ declare function app:init-data($node as node(), $model as map(*)) {
             ,'date-last-ads-update': substring($last-ads-mod-date,1,16)
 
         }
+};
+
+
+
+(:~
+ : Search in db if we have the associated journal value and return single name or use given string.
+ : we have to search with all journal codes matching start of bibstem but keep the first only.
+ : TODO improce speedup since bibcode may only be checked accross JJJJ chars 
+ :   see : https://ui.adsabs.harvard.edu/help/actions/bibcode
+ : 
+ : @param $journal journal value as returned by ADS 
+ :)
+declare function app:normalize-journal-name($name as xs:string?, $bibcode as xs:string)as xs:string{
+    let $ojkey := "ordered-journals"
+    let $cjkey := "cached-journals"
+    let $journals := cache:get($app:expirable-cache-name, $ojkey)
+    let $journals := if(exists($journals)) 
+        then
+            $journals
+        else
+            let $j := for $j in $app:ads-journals order by string-length($j/code) descending return $j
+            let $cache := cache:put($app:expirable-cache-name, $ojkey, $j)
+            return $j
+    
+    let $bibstem := substring($bibcode, 5)
+    
+    let $cached-journals := cache:get($app:expirable-cache-name, $cjkey)
+    
+    let $matched-journals := for $j in $cached-journals[code[starts-with($bibstem, .)]] order by string-length($j/code) descending return $j
+    
+    let  $matched-journals := if(exists($matched-journals)) 
+        then 
+            (
+(:            util:log("info", "Found in cache : size="||count($cached-journals)),:)
+(:            if(count($matched-journals)>1) then util:log("info", "Found multiples journals for '"|| $bibstem ||"' : "||string-join(for $m in $matched-journals return $m/name, "; ")) else (),:)
+            $matched-journals[1]
+            )
+        else 
+            let $search-in-all := for $j in $journals[code[starts-with($bibstem, .)]] order by string-length($j/code) descending return $j
+            
+            let $add-in-cache := if(exists($search-in-all)) then cache:put($app:expirable-cache-name, $cjkey, ($cached-journals,$search-in-all) ) else ()
+            return $search-in-all[1]
+    
+    let $jname := ($matched-journals/name)
+(:    let $log := util:log("info", "bibstem: "||$bibstem || " -> " || $jname ):)
+    return 
+        if( exists($jname) ) then $jname else 
+            ( util:log("info", "Nothing dound using given name : "|| $name ), $name )
+};
+
+
+(:~
+ : Search in db if we have the associated journal value and return single name or use given string.
+ : 
+ : @param $journal journal value as returned by ADS 
+ :)
+declare function app:normalize-journal-name-old($name as xs:string?, $bibcode as xs:string)as xs:string?{
+    let $name := normalize-space($name)
+    return
+        if(string-length($name)<2) then (util:log("info","missing journal name"), $name)
+        else 
+            let $bbistem := substring($bibcode, 4,6)
+            let $journals := $app:journal-names-doc//journal
+(:            let $journal := $journals[name[matches(translate($name,"&amp;",""),translate(.,"&amp;",""))]] [1]:)
+            let $journal := $journals[matches(translate($name,"&amp;",""),translate(name,"&amp;",""))] [1]
+            let $journal := if(exists($journal)) then $journal else $journals[value[starts-with($name,.)]][1]
+            
+            return if(exists($journal)) then (
+(:                util:log("info","found journal '"|| $journal/name || "' for : '" || $name||"'"), :)
+                    $journal/name
+                ) else 
+                (
+                    util:log("info","You may add a new journal entry for :'" || $name|| "'" || $journals[starts-with(translate($name,"&amp;",""),translate(name,"&amp;",""))] ),
+                    $name
+                )
 };
 
 

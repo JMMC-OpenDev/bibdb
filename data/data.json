@@ -1,0 +1,377 @@
+{
+  "collectionName": "basis_loader_xml",
+  "title"   :  "EZVIS - Olbin publication database",
+  "loaders" : [
+    {
+      "script": "castor-load-xmlcorpus",
+      "pattern": "**/*.xml",
+      "options" : {
+        "cutter" : "/records/record"
+      }
+    }
+  ],
+  "documentFields": {
+    "$year": {
+      "visible": true,
+      "label": "Year",
+      "path": "content.json.pubdate.#text"
+      ,"truncate": 4
+    },
+    "$title": {
+      "visible": true,
+      "label": "Title",
+      "path": "content.json.title.#text"
+    },
+    "$journal_full": {
+      "visible": false,
+      "label": "Journal",
+      "path": "content.json.journal.#text"
+    },
+    "$journal": {
+      "visible": true,
+      "label": "Journal(short)",
+      "path": "journal_full"
+      ,"parseCSV": ","
+      ,"first":true
+    },
+    "$bibcode": {
+      "visible": false,
+      "label": "Bibcode",
+      "path": "content.json.bibcode.#text"
+    },
+    "$doiUrl": {
+      "visible": true,
+      "label": "Bibcode",
+      "compute": "bibcode ? \"<a target='_blank' href='http://cdsads.u-strasbg.fr/abs/\" + bibcode + \"'>\" + bibcode + \"</a>\" :  \"\""
+    },
+    "$tag": {
+      "label": "Tag",
+      "path": "content.json.tag"
+    }, 
+    "$tags": {
+      "visible": true,
+      "label": "Tags",
+      "get": "tag",
+      "foreach":{
+        "get": "#text"
+      },
+      "join": "; "
+    },
+    "$category": {
+      "label": "Category",
+      "path": "content.json.category"
+    }, 
+
+    "$JMMC": {
+       "label": "",
+       "visible": false,
+       "get":   "content.json.JMMC.#text",
+       "default":"",
+       "parseCSV" : "/",
+       "foreach": {
+         "trim": true
+        },
+        "remove":""
+    },
+      "$MainCategory": {
+       "label": "",
+       "visible": false,
+       "get":   "content.json.MainCategory.#text",
+       "default":"",
+       "parseCSV" : "/",
+       "foreach": {
+         "trim": true
+        },
+        "remove":""
+    },
+      "$Facility": {
+       "label": "",
+       "visible": false,
+       "get":   "content.json.Facility.#text",
+       "default":"",
+       "parseCSV" : "/",
+       "foreach": {
+         "trim": true
+        },
+        "remove":""
+    },
+      "$Instrument": {
+       "label": "",
+       "visible": false,
+       "get":   "content.json.Instrument.#text",
+       "default":"",
+       "parseCSV" : "/",
+       "foreach": {
+         "trim": true
+        },
+        "remove":""
+    },
+      "$AstrophysicalTopic": {
+       "label": "",
+       "visible": false,
+       "get":   "content.json.AstrophysicalTopic.#text",
+       "default":"",
+       "parseCSV" : "/",
+       "foreach": {
+         "trim": true
+        },
+        "remove":""
+    },
+      "$Wavelength": {
+       "label": "",
+       "visible": false,
+       "get":   "content.json.Wavelength.#text",
+       "default":"",
+       "parseCSV" : "/",
+       "foreach": {
+         "trim": true
+        },
+        "remove":""
+    },
+      "$SpectralResolution": {
+       "label": "",
+       "visible": false,
+       "get":   "content.json.SpectralResolution.#text",
+       "default":"",
+       "parseCSV" : "/",
+       "foreach": {
+         "trim": true
+        },
+        "remove":""
+    },
+      "$Technique": {
+       "label": "",
+       "visible": false,
+       "get":   "content.json.Technique.#text",
+       "default":"",
+       "parseCSV" : "/",
+       "foreach": {
+         "trim": true
+        },
+        "remove":""
+    },
+      
+
+
+                    "$text": {
+                      "get" : ["title", "tag"],
+                      "join": "|"
+                    }
+  },
+  "dashboard": {
+    "charts": [
+      {
+        "field": "year",
+        "type": "histogram",
+        "title": "Year",
+        "facets": [
+          { "label": "Journal", "path": "journal" },
+          { "label": "Year", "path": "year" },
+          {"label": "JMMC", "path": "JMMC" },
+          {"label": "MainCategory", "path": "MainCategory" },
+          {"label": "Facility", "path": "Facility" },
+          {"label": "Instrument", "path": "Instrument" },
+          {"label": "Astrophysical topic", "path": "AstrophysicalTopic" },
+          {"label": "Wavelength", "path": "Wavelength" },
+          {"label": "Spectral Resolution", "path": "SpectralResolution" },
+          {"label": "Technique", "path": "Technique" },
+          { "label": "Tag", "path": "tag" }
+        ]
+      },
+{
+        "field": "journal",
+        "type": "horizontalbars",
+        "title": "Journal",
+        "facets": [
+          { "label": "Journal", "path": "journal" },
+          { "label": "Year", "path": "year" },
+          {"label": "JMMC", "path": "JMMC" },
+          {"label": "MainCategory", "path": "MainCategory" },
+          {"label": "Facility", "path": "Facility" },
+          {"label": "Instrument", "path": "Instrument" },
+          {"label": "Astrophysical topic", "path": "AstrophysicalTopic" },
+          {"label": "Wavelength", "path": "Wavelength" },
+          {"label": "Spectral Resolution", "path": "SpectralResolution" },
+          {"label": "Technique", "path": "Technique" },
+          { "label": "Tag", "path": "tag" }
+        ]
+      },
+      
+      {
+        "field": "JMMC",
+        "type": "pie",
+        "title": "JMMC",
+        "facets": [
+          { "label": "Journal", "path": "journal" },
+          { "label": "Years", "path": "year" },
+          {"label": "JMMC", "path": "JMMC" },
+          {"label": "MainCategory", "path": "MainCategory" },
+          {"label": "Facility", "path": "Facility" },
+          {"label": "Instrument", "path": "Instrument" },
+          {"label": "Astrophysical topic", "path": "AstrophysicalTopic" },
+          {"label": "Wavelength", "path": "Wavelength" },
+          {"label": "Spectral Resolution", "path": "SpectralResolution" },
+          {"label": "Technique", "path": "Technique" },
+          { "label": "Tag", "path": "tag" }
+
+        ]
+      },
+      {
+        "field": "MainCategory",
+        "type": "pie",
+        "title": "MainCategory",
+        "facets": [
+          { "label": "Journal", "path": "journal" },
+          { "label": "Years", "path": "year" },
+          {"label": "JMMC", "path": "JMMC" },
+          {"label": "MainCategory", "path": "MainCategory" },
+          {"label": "Facility", "path": "Facility" },
+          {"label": "Instrument", "path": "Instrument" },
+          {"label": "Astrophysical topic", "path": "AstrophysicalTopic" },
+          {"label": "Wavelength", "path": "Wavelength" },
+          {"label": "Spectral Resolution", "path": "SpectralResolution" },
+          {"label": "Technique", "path": "Technique" },
+          { "label": "Tag", "path": "tag" }
+
+        ]
+      },
+      {
+        "field": "Facility",
+        "type": "pie",
+        "title": "Facility",
+        "facets": [
+          { "label": "Journal", "path": "journal" },
+          { "label": "Years", "path": "year" },
+          {"label": "JMMC", "path": "JMMC" },
+          {"label": "MainCategory", "path": "MainCategory" },
+          {"label": "Facility", "path": "Facility" },
+          {"label": "Instrument", "path": "Instrument" },
+          {"label": "Astrophysical topic", "path": "AstrophysicalTopic" },
+          {"label": "Wavelength", "path": "Wavelength" },
+          {"label": "Spectral Resolution", "path": "SpectralResolution" },
+          {"label": "Technique", "path": "Technique" },
+          { "label": "Tag", "path": "tag" }
+
+        ]
+      },
+      {
+        "field": "Instrument",
+        "type": "pie",
+        "title": "Instrument",
+        "facets": [
+          { "label": "Journal", "path": "journal" },
+          { "label": "Years", "path": "year" },
+          {"label": "JMMC", "path": "JMMC" },
+          {"label": "MainCategory", "path": "MainCategory" },
+          {"label": "Facility", "path": "Facility" },
+          {"label": "Instrument", "path": "Instrument" },
+          {"label": "Astrophysical topic", "path": "AstrophysicalTopic" },
+          {"label": "Wavelength", "path": "Wavelength" },
+          {"label": "Spectral Resolution", "path": "SpectralResolution" },
+          {"label": "Technique", "path": "Technique" },
+          { "label": "Tag", "path": "tag" }
+
+        ]
+      },
+      {
+        "field": "AstrophysicalTopic",
+        "type": "pie",
+        "title": "Astrophysical Topic",
+        "facets": [
+            { "label": "Journal", "path": "journal" },
+          { "label": "Years", "path": "year" },
+          {"label": "JMMC", "path": "JMMC" },
+          {"label": "MainCategory", "path": "MainCategory" },
+          {"label": "Facility", "path": "Facility" },
+          {"label": "Instrument", "path": "Instrument" },
+          {"label": "Astrophysical topic", "path": "AstrophysicalTopic" },
+          {"label": "Wavelength", "path": "Wavelength" },
+          {"label": "Spectral Resolution", "path": "SpectralResolution" },
+          {"label": "Technique", "path": "Technique" },
+          { "label": "Tag", "path": "tag" }
+
+        ]
+      },
+      {
+        "field": "Wavelength",
+        "type": "pie",
+        "title": "Wavelength",
+        "facets": [
+          { "label": "Journal", "path": "journal" },
+          { "label": "Years", "path": "year" },
+          {"label": "JMMC", "path": "JMMC" },
+          {"label": "MainCategory", "path": "MainCategory" },
+          {"label": "Facility", "path": "Facility" },
+          {"label": "Instrument", "path": "Instrument" },
+          {"label": "Astrophysical topic", "path": "AstrophysicalTopic" },
+          {"label": "Wavelength", "path": "Wavelength" },
+          {"label": "Spectral Resolution", "path": "SpectralResolution" },
+          {"label": "Technique", "path": "Technique" },
+          { "label": "Tag", "path": "tag" }
+
+        ]
+      },
+      {
+        "field": "SpectralResolution",
+        "type": "pie",
+        "title": "Spectral Resolution",
+        "facets": [
+          { "label": "Journal", "path": "journal" },
+          { "label": "Years", "path": "year" },
+          {"label": "JMMC", "path": "JMMC" },
+          {"label": "MainCategory", "path": "MainCategory" },
+          {"label": "Facility", "path": "Facility" },
+          {"label": "Instrument", "path": "Instrument" },
+          {"label": "Astrophysical topic", "path": "AstrophysicalTopic" },
+          {"label": "Wavelength", "path": "Wavelength" },
+          {"label": "Spectral Resolution", "path": "SpectralResolution" },
+          {"label": "Technique", "path": "Technique" },
+          { "label": "Tag", "path": "tag" }
+
+        ]
+      },
+      {
+        "field": "Technique",
+        "type": "pie",
+        "title": "Technique",
+        "facets": [
+          {"label": "Journal", "path": "journal" },
+          {"label": "Years", "path": "year" },
+          {"label": "JMMC", "path": "JMMC" },
+          {"label": "MainCategory", "path": "MainCategory" },
+          {"label": "Facility", "path": "Facility" },
+          {"label": "Instrument", "path": "Instrument" },
+          {"label": "Astrophysical topic", "path": "AstrophysicalTopic" },
+          {"label": "Wavelength", "path": "Wavelength" },
+          {"label": "Spectral Resolution", "path": "SpectralResolution" },
+          {"label": "Technique", "path": "Technique" },
+          { "label": "Tag", "path": "tag" }
+
+        ]
+      },
+      {
+        "type": "network",
+        "fields": [ "tag" ],
+        "maxItems": 1000,
+        "title": "Tag net",
+        "help": "Links between tags."
+        ,"facets": [
+          { "label": "Journal", "path": "journal" },
+          { "label": "Year", "path": "year" },
+          {"label": "JMMC", "path": "JMMC" },
+          {"label": "MainCategory", "path": "MainCategory" },
+          {"label": "Facility", "path": "Facility" },
+          {"label": "Instrument", "path": "Instrument" },
+          {"label": "Astrophysical topic", "path": "AstrophysicalTopic" },
+          {"label": "Wavelength", "path": "Wavelength" },
+          {"label": "Spectral Resolution", "path": "SpectralResolution" },
+          {"label": "Technique", "path": "Technique" },
+          { "label": "Tag", "path": "tag" }
+        ]
+
+     }
+
+    ]
+  },
+  "MONGO_HOST_PORT": "mongo-db:27017"
+}
