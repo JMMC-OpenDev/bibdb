@@ -7,8 +7,12 @@ import module namespace config="http://olbin.org/exist/bibdb/config" at "config.
 import module namespace adsabs="http://exist.jmmc.fr/jmmc-resources/adsabs" at "/db/apps/jmmc-resources/content/adsabs.xql";
 import module namespace jmmc-auth="http://exist.jmmc.fr/jmmc-resources/auth";
 
+import module namespace http = "http://expath.org/ns/http-client";
+declare namespace output = "http://www.w3.org/2010/xslt-xquery-serialization";
+declare namespace rest="http://exquery.org/ns/restxq";
 (:declare variable $app:olbin-doc := doc($config:data-root||"/olbin.xml"); replace by app:get-olbin:)
 declare variable $app:jmmc-doc := doc($config:data-root||"/jmmc.xml");
+declare variable $app:curation-doc := doc($config:data-root||"/curation.xml")/*;
 declare variable $app:blacklist-doc := doc($config:data-root||"/blacklists.xml");
 (:declare variable $app:journal-names-doc := doc($config:data-root||"/journal-names.xml");:)
  declare variable $app:journal-names-doc := doc("/db/apps/bibdb-data/data/journal-names.xml");
@@ -628,35 +632,15 @@ declare function app:search-cats-analysis($node as node(), $model as map(*)) {
     let $refresh := app:check-updates($node, $model)
     
     let $log := util:log("info","app:search-cats-analysis()/1")
-    
     let $jmmc-groups := $app:jmmc-doc//group[@tag and not(@tag='Others')]
     let $jmmc-groups-bibcodes := data($jmmc-groups/bibcode)
     
-    let $log := util:log("info","app:search-cats-analysis()/2")
-    
-    let $olbin-doc := app:get-olbin()
-    let $olbin-bibcodes := data($olbin-doc//bibcode) (: could be ads list ? :)
-    let $non-interfero-bibcodes := data(adsabs:library-get-bibcodes($app:LIST-NON-INTERFERO))
-    let $blacklist-bibcodes := data(adsabs:library-get-bibcodes($app:LIST-OLBIN-BLACKLIST))
-    let $jmmc-papers-bibcodes := data(adsabs:library-get-bibcodes($app:LIST-JMMC-PAPERS))
-    
     let $log := util:log("info","app:search-cats-analysis()/3")
-    
     let $olbin-refereed-q := adsabs:library-get-search-expr($app:LIST-OLBIN-REFEREED)
     let $non-interfero-q := adsabs:library-get-search-expr($app:LIST-NON-INTERFERO)
     let $blacklist-q := "( " || adsabs:library-get-search-expr($app:LIST-OLBIN-BLACKLIST) || " OR bibstem:(" || string-join($adsabs:filtered-journals, " OR ") || ") )"
 
-    let $missing-jmmc-papers-bibcodes := $jmmc-groups-bibcodes[not(.=$jmmc-papers-bibcodes)]
-    let $missing-jmmc-papers := if(exists($missing-jmmc-papers-bibcodes)) then "identifier:("|| string-join($missing-jmmc-papers-bibcodes, ' or ')||")" else ()
-    let $missing-jmmc-papers := if($missing-jmmc-papers) then adsabs:get-query-link($missing-jmmc-papers,"Please add next jmmc-papers in ADS or move out xmldb") else ()
-
-let $log := util:log("info","app:search-cats-analysis()/4")
-
-    let $missing-in-groups := for $record in adsabs:get-records($jmmc-papers-bibcodes[not(.=$jmmc-groups-bibcodes)]) return <li>&lt;!--{adsabs:get-title($record)}--&gt;<br/>{ serialize(<bibcode>{adsabs:get-bibcode($record)}</bibcode>)} </li>
-    let $missing-in-groups := if($missing-in-groups) then <div><h4>ADS jmmc-papers not present in local db</h4><ul> {$missing-in-groups}</ul></div> else ()
-    
     let $log := util:log("info","app:search-cats-analysis()/5")
-    
     let $base-query := " full:(&quot;interferometer&quot; or &quot;interferometry&quot;) property:refereed - " || $olbin-refereed-q || " - " || $blacklist-q ||" - " || $non-interfero-q || " "
     let $jmmc-query := " ( " || string-join( ($app:jmmc-doc/jmmc/query) , " or " ) || " ) "
     
@@ -686,7 +670,6 @@ let $log := util:log("info","app:search-cats-analysis()/4")
         ))
         
     let $log := util:log("info","app:search-cats-analysis()/7")
-    
     let $group-list := <ul class="list-inline"> {map:for-each( $groups, function ($key, $value) { <li>
         { adsabs:get-query-link($value?q, app:badge(<span title="{$value?q}">{$key}</span>,$value("numFound"), $value("color"))) } </li> } ) } </ul>
     
@@ -695,7 +678,6 @@ let $log := util:log("info","app:search-cats-analysis()/4")
     let $records := adsabs:get-records($bibcodes)
     
     let $log := util:log("info","app:search-cats-analysis()/8")
-    
     let $by-bib-list := for $bibcode in subsequence($bibcodes,1,50) order by $bibcode descending
         let $record := adsabs:get-records($bibcode)
         let $tags := for $t in map:keys($groups) return if ( $groups($t)?bibcodes[. = $bibcode] ) then $t else ()
@@ -710,13 +692,7 @@ let $log := util:log("info","app:search-cats-analysis()/4")
             </li>
     
     let $log := util:log("info","app:search-cats-analysis()/9")
-            
-    let $jmmc-tags-query := $jmmc-query || " and ( " || 
-        string-join( ( ($groups?*?full-q) ! concat( '(', ., ')' ) ) , " or ")
-        || " ) "
-    
-    let $log := util:log("info","app:search-cats-analysis()/10")
-    
+    let $jmmc-tags-query := $jmmc-query || " and ( " || string-join( ( ($groups?*?full-q) ! concat( '(', ., ')' ) ) , " or ") || " ) "
     let $global-query := $base-query || "(" || string-join(( $groups?*?tag-q, $groups?*?cit-q , $jmmc-tags-query), ") or (") || ")"
     let $global-link := adsabs:get-query-link($global-query , "View this list on ADS", "sort=bibcode")
     
@@ -724,6 +700,123 @@ let $log := util:log("info","app:search-cats-analysis()/4")
     return ( $refresh, $group-list, <h2>{count($by-bib-list)}/{count($bibcodes)} publications to filter and review ({$global-link})</h2>,  <ol>{$by-bib-list}</ol> )
 };
 
+declare function app:check-tags-analysis($node as node(), $model as map(*)) {
+    
+    let $log := util:log("info","app:check-tags-analysis()/1")
+    let $sync-lists := try {app:sync-lists()} catch * {()}
+    
+    let $max := request:get-parameter("max", 50)
+    
+    let $jmmc-groups := $app:jmmc-doc//group[@tag and not(@tag='Others')]
+    let $jmmc-groups-bibcodes := data($jmmc-groups/bibcode)
+    
+    let $log := util:log("info","app:check-tags-analysis()/2")
+    
+    let $olbin-doc := app:get-olbin()
+    
+    let $olbin-refereed-q := adsabs:library-get-search-expr($app:LIST-OLBIN-REFEREED)
+    let $non-interfero-q := adsabs:library-get-search-expr($app:LIST-NON-INTERFERO)
+    let $blacklist-q := "( " || adsabs:library-get-search-expr($app:LIST-OLBIN-BLACKLIST) || " OR bibstem:(" || string-join($adsabs:filtered-journals, " OR ") || ") )"
+    
+    let $log := util:log("info","app:check-tags-analysis()/5")
+    
+    let $base-query := " " || $olbin-refereed-q || " - docs(library/evb9oMKNQNStAy66cyKtJg) "
+    let $jmmc-query := " ( " || string-join( ($app:jmmc-doc/jmmc/query) , " or " ) || " ) "
+    
+    let $groups := map:merge((
+        for $group in $jmmc-groups
+            let $tag := data($group/@tag)
+            let $q := string-join($group/bibcode , " or ")
+            let $q := if($q) then "( citations(identifier:("||$q||")) )" else ()
+            let $cit-q := if($q) then $q else ()
+            let $full-q := ' full:"' || lower-case($group/@tag) ||'"'
+            let $q := string-join((data($q), "( " || $jmmc-query || ' and' || $full-q ||' )' )," or ")
+            let $q := $q || $base-query
+            let $res := adsabs:search-bibcodes($q)
+            return
+                map:entry($tag, map{"q":$q, "cit-q":$cit-q, "full-q":$full-q, "bibcodes":$res, "numFound":count($res), "color":"warning"} )
+        ,        
+        util:log("info","app:check-tags-analysis()/6")
+        ,
+        map:for-each(app:get-interferometers(), function ($tag, $q){
+            let $q := '=full:('|| string-join($q ! concat('"',.,'"'), " OR ") || ')'
+            let $sub-q := $q
+            let $q := $q || $base-query
+            let $res := adsabs:search-bibcodes($q)
+            return
+                map:entry($tag, map{"q":$q , "tag-q":$sub-q, "bibcodes":$res, "numFound":count($res), "color":"success" })
+            })
+        ))
+        
+    let $log := util:log("info","app:check-tags-analysis()/7")
+    
+    let $group-list := <ul class="list-inline"> {map:for-each( $groups, function ($key, $value) { <li>
+        { adsabs:get-query-link($value?q, app:badge(<span title="{$value?q}">{$key}</span>,$value("numFound"), $value("color"))) } </li> } ) } </ul>
+    
+    
+    let $bibcodes := distinct-values($groups?*?bibcodes)
+    
+    let $ok-bib-list := for $bibcode in $bibcodes
+        let $tags := for $t in map:keys($groups) return if ( $groups($t)?bibcodes[. = $bibcode] ) then 
+            if($olbin-doc//e[bibcode=$bibcode]/tag=$t) then () (: we may show that it is already tagged ? :) else $t
+            else ()
+        where empty($tags)
+        return $bibcode
+    let $store-in-ads := adsabs:library-add("olbin-tag-reviewed", $ok-bib-list)
+    
+    let $bibcodes-to-analyse := $bibcodes[not(.=$ok-bib-list)]
+    
+    (: pre-load in a single stage only first one - this may be long :)
+    let $bibcodes-to-display := subsequence($bibcodes-to-analyse,1,$max)
+    let $records := adsabs:get-records($bibcodes-to-display)
+    
+    let $by-bib-list := for $bibcode in $bibcodes-to-display order by $bibcode descending
+        let $tags := for $t in map:keys($groups) return if ( $groups($t)?bibcodes[. = $bibcode] ) then 
+            if($olbin-doc//e[bibcode=$bibcode]/tag=$t) then () (: we may show that it is already tagged ? :) else $t
+            else ()
+        where exists($tags) 
+        let $record := adsabs:get-records($bibcode)
+        let $labels := $tags ! ( <li class="candidate-tag"><span class="label label-{$groups(.)?color}">{data(.)}</span></li> )
+        let $olbin-add-link := "http://jmmc.fr/bibdb/updatePubs.php?filter=" || encode-for-uri($bibcode) || string-join(("", (for $t in $tags return "tag[]="||$t )), "&amp;") 
+        return 
+            <li class="pubtags ">{adsabs:get-html($record, 3)}
+                <ul class="list-inline">
+                    <li><button id="{$bibcode}" class="flagtag btn btn-default">Flag tag review</button> / <a class="btn btn-default" target="_blank" href="{$olbin-add-link}">update OLBIN's tags</a>&#160;</li>
+                    { $labels } 
+                    <!--<form action="https:ui.adsabs.harvard.edu/v1/biblib/documents/p4drdURkRnqKPBWx6zJ-pA" method="POST"><input type="hidden" name="action" value="add"/><input type="hidden" name="bibcode" value="{$bibcode}"/><button>Tag OK / hide me</button></form>-->
+                    
+                    
+                </ul>
+            </li>
+    
+    let $jmmc-tags-query := $jmmc-query || " and ( " || string-join( ( ($groups?*?full-q) ! concat( '(', ., ')' ) ) , " or ") || " ) "
+    let $global-query := $base-query || "(" || string-join(( $groups?*?tag-q, $groups?*?cit-q , $jmmc-tags-query), ") or (") || ")"
+    let $global-link := adsabs:get-query-link($global-query , "View this list on ADS", "sort=bibcode")
+    
+    let $script := <script>
+        <![CDATA[
+        $( 'body' ).on( 'click', '.flagtag', function(event) {   
+            $.ajaxSetup({traditional: true});
+            var bibcode = $(this).attr("id");
+            var answer = confirm('Are you sure you want to leave proposed tags unchecked for "'+bibcode+'" paper ?');
+            if (answer)
+            {
+                var li = $(this).parents(".pubtags");
+                var tags = [];
+                li.find(".candidate-tag").each(function(){tags.push($(this).text());});
+
+                $.ajax( { url: "/exist/restxq/add-to-library/olbin-tag-reviewed",  data: { bibcodes: bibcode, tags: tags} } )
+                .done(function() { li.remove(); })
+                .fail(function() { alert( "Sorry can't process your request, please Sign In first" ); });
+            }
+        });            
+        ]]>
+    </script>
+
+    
+    let $log := util:log("info","app:check-tags-analysis()/11")
+    return ( $group-list, <h2>{count($by-bib-list)} publications need a tag update. {$max} tested over <a href="?max={count($bibcodes-to-analyse)}">{count($bibcodes-to-analyse)}</a> to be reviewed ({$global-link})</h2>,  <ol>{$by-bib-list}</ol>, $script )
+};
 
 
 (:  to avoid massive updates we can just compute list counts and update differences only  :)
@@ -731,13 +824,13 @@ declare function app:check-update($libraries, $list-name, $bibcodes as xs:string
     let $ads-list := $libraries?libraries?*[?name=$list-name]
     let $num_documents := number($ads-list?num_documents)
     let $count := number(count($bibcodes))
-    let $log  := util:log("info", string-join(("check-updates for",$list-name, "got", $num_documents, "vs", $count)," " ))
     let $do-update := if( $count = $num_documents ) then false() else true()
     return 
         if ( count($bibcodes)=$num_documents ) 
         then ()
 (:        $list-name || " uptodate" :)
         else
+            let $log  := util:log("info", string-join(("check-updates for",$list-name, "got", $num_documents, "vs", $count)," " ))
             let $log := if( $skip-cache-flush ) then () else util:log("info", "changed required => clear adsabs cache")
             let $clear-cache :=  if( $skip-cache-flush ) then () else cache:clear($adsabs:expirable-cache-name)
             let $id := $ads-list?id
@@ -754,7 +847,7 @@ declare function app:check-update($libraries, $list-name, $bibcodes as xs:string
 declare function app:sync-lists(){
 let $clear-olbin := cache:remove($app:expirable-cache-name, "olbin-xml")
 
-let $force-clear := if(true()) then cache:clear($adsabs:expirable-cache-name) else ()
+let $force-clear := if(false()) then cache:clear($adsabs:expirable-cache-name) else ()
 
 let $entries :=  app:get-olbin()//e
 let $bibcodes := $entries//bibcode
