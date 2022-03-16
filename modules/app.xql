@@ -2,7 +2,8 @@ xquery version "3.1";
 
 module namespace app="http://olbin.org/exist/bibdb/templates";
 
-import module namespace templates="http://exist-db.org/xquery/templates" ;
+import module namespace templates="http://exist-db.org/xquery/html-templating";
+import module namespace lib="http://exist-db.org/xquery/html-templating/lib";
 import module namespace config="http://olbin.org/exist/bibdb/config" at "config.xqm";
 import module namespace adsabs="http://exist.jmmc.fr/jmmc-resources/adsabs" at "/db/apps/jmmc-resources/content/adsabs.xql";
 import module namespace jmmc-auth="http://exist.jmmc.fr/jmmc-resources/auth";
@@ -641,7 +642,7 @@ declare function app:search-cats-analysis($node as node(), $model as map(*)) {
     let $blacklist-q := "( " || adsabs:library-get-search-expr($app:LIST-OLBIN-BLACKLIST) || " OR bibstem:(" || string-join($adsabs:filtered-journals, " OR ") || ") )"
 
     let $log := util:log("info","app:search-cats-analysis()/5")
-    let $base-query := " full:(&quot;interferometer&quot; or &quot;interferometry&quot;) property:refereed - " || $olbin-refereed-q || " - " || $blacklist-q ||" - " || $non-interfero-q || " "
+    let $base-query := " NOT fulltext_mtime:[&quot;" || current-dateTime() || "&quot; TO *] full:(&quot;interferometer&quot; or &quot;interferometry&quot;) property:refereed - " || $olbin-refereed-q || " - " || $blacklist-q ||" - " || $non-interfero-q || " "
     let $jmmc-query := " ( " || string-join( ($app:jmmc-doc/jmmc/query) , " or " ) || " ) "
     
     let $groups := map:merge((
@@ -909,3 +910,4 @@ return <pre>{$res}</pre>
 (:for $list in $existing-lib-names:)
 (:    return $list:)
 (:return  count($entries//e) = $num_documents:)
+
