@@ -642,7 +642,7 @@ declare function app:search-cats-analysis($node as node(), $model as map(*)) {
     let $blacklist-q := "( " || adsabs:library-get-search-expr($app:LIST-OLBIN-BLACKLIST) || " OR bibstem:(" || string-join($adsabs:filtered-journals, " OR ") || ") )"
 
     let $log := util:log("info","app:search-cats-analysis()/5")
-    let $base-query := " NOT fulltext_mtime:[&quot;" || current-dateTime() || "&quot; TO *] full:(&quot;interferometer&quot; or &quot;interferometry&quot;) property:refereed - " || $olbin-refereed-q || " - " || $blacklist-q ||" - " || $non-interfero-q || " "
+    let $base-query := " full:(&quot;interferometer&quot; or &quot;interferometry&quot;) NOT fulltext_mtime:[&quot;" || current-dateTime() || "&quot; TO *] property:refereed - " || $olbin-refereed-q || " - " || $blacklist-q ||" - " || $non-interfero-q || " "
     let $jmmc-query := " ( " || string-join( ($app:jmmc-doc/jmmc/query) , " or " ) || " ) "
     
     let $groups := map:merge((
