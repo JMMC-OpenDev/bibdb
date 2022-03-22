@@ -32,7 +32,7 @@ declare variable $app:OLBIN-COLOR := "success";
 declare variable $app:expirable-cache-name :="bibdbmgrcache";
 declare variable $app:expirable-cache := cache:create($app:expirable-cache-name,map { "expireAfterAccess": 600000 }); (: 10min :)
 
-declare variable $app:telbib-vlti-url := "http://telbib.eso.org/api.php?telescope[]=vlti+visitor&amp;telescope[]=vlti";
+declare variable $app:telbib-vlti-url := "https://telbib.eso.org/api.php?telescope[]=vlti+visitor&amp;telescope[]=vlti";
 
 declare function app:get-olbin(){
     let $xml := cache:get($app:expirable-cache-name, "olbin-xml")
