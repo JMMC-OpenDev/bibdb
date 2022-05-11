@@ -245,6 +245,9 @@ declare function app:others-lists($node as node(), $model as map(*)) {
     let $jmdc-csv-libname := 'jmdc-csv'
     let $jmdc-csv-interfero-libname := 'jmdc-csv-interfero'
     
+    let $olbin-stellar-diameters-libname := "tag-olbin Stellar diameters"
+    
+    
     let $jmdc-csv := cache:get($app:expirable-cache-name,$jmdc-csv-libname)
     let $jmdc-csv := if ($jmdc-csv) then $jmdc-csv else (
         cache:put($app:expirable-cache-name,$jmdc-csv-libname,tail(hc:send-request( <hc:request href="http://jmdc.jmmc.fr/export_csv" method="GET"/> ))),
@@ -273,6 +276,7 @@ declare function app:others-lists($node as node(), $model as map(*)) {
     let $check-update := app:check-update($fresh-libraries, $jmdc-csv-libname, $jmdc-bibcodes, true())
     let $check-update := app:check-update($fresh-libraries, $jmdc-csv-interfero-libname, $jmdc-interfero-bibcodes, true())
     
+    
     let $q1 := adsabs:library-query($jmdc-csv-libname)
     let $q2 := adsabs:library-query($app:LIST-OLBIN-REFEREED) || " " || $q1
     let $q3 := " - " || $q2
@@ -280,9 +284,12 @@ declare function app:others-lists($node as node(), $model as map(*)) {
     let $q11 := adsabs:library-query($jmdc-csv-interfero-libname)
     let $q12 := adsabs:library-query($app:LIST-OLBIN-REFEREED) || " " || $q11
     let $q13 := " - " || $q12
-    let $q14 := adsabs:library-query("tag-olbin Stellar diameters") || " " || $q11
+    let $q14 := adsabs:library-query($olbin-stellar-diameters-libname) || " " || $q11
     let $q15 := " - " || $q14
 
+    let $q21 := adsabs:library-query($olbin-stellar-diameters-libname)
+    let $q22 := $q21 || " " || $q11
+    let $q23 := $q21 || " - " || $q11
     
     return 
     <div>
@@ -295,6 +302,9 @@ declare function app:others-lists($node as node(), $model as map(*)) {
                 <li>{adsabs:get-query-link($q11,"JMDC reference papers from optical interferometry or intensity interferometry methods")} : {count($jmdc-interfero-bibcodes)} bibcodes 
                     <ul><li> {adsabs:get-query-link($q12," part of Olbin")}</li><li> {adsabs:get-query-link($q13," not part of Olbin")}</li></ul>
                     <ul><li> {adsabs:get-query-link($q14," part of Olbin.Stellar diameters")}</li><li> {adsabs:get-query-link($q15," not part of Olbin.Stellar diameters")}</li></ul>
+                </li>
+                <li>{adsabs:get-query-link($q21,"Olbin.Stellar diameters")} : {data(adsabs:get-libraries()?libraries?*[?name=$olbin-stellar-diameters-libname]?num_documents)} bibcodes 
+                    <ul><li> {adsabs:get-query-link($q22," part of JMDC/interfero")}</li><li> {adsabs:get-query-link($q23,<b> not part of JMDC/interfero</b>)}</li></ul>
                 </li>
             </ul>
             <em>Note: bibcodes with ............ are filtered out</em>
@@ -313,6 +323,7 @@ declare function app:jmmc-summary($node as node(), $model as map(*)) {
 declare function app:jmmc-ads-lists($node as node(), $model as map(*)) {
     app:show-ads-lists("jmmc"),
     app:show-ads-lists("oidb"),
+(:    app:show-ads-lists('jmdc-csv-interfero'),:)
     app:show-ads-lists("telbib")
 };
 
@@ -628,8 +639,8 @@ declare function app:search-cats($node as node(), $model as map(*)) {
     </ul>
 };
 
-declare function app:search-cats-analysis($node as node(), $model as map(*)) {
-    let $sync-lists := try {app:sync-lists()} catch * {()}
+declare function app:search-cats-analysis($node as node(), $model as map(*), $skip as xs:string?) {
+    let $sync-lists := try {if(exists($skip)) then () else app:sync-lists()} catch * {()}
     let $refresh := app:check-updates($node, $model)
     
     let $log := util:log("info","app:search-cats-analysis()/1")
@@ -654,7 +665,7 @@ declare function app:search-cats-analysis($node as node(), $model as map(*)) {
             let $full-q := ' full:"' || lower-case($group/@tag) ||'"'
             let $q := string-join((data($q), "( " || $jmmc-query || ' and' || $full-q ||' )' )," or ")
             let $q := $q || $base-query
-            let $res := adsabs:search($q, "bibcode")
+            let $res := if(exists($skip)) then () else adsabs:search($q, "bibcode")
             return
                 map:entry($tag, map{"q":$q, "cit-q":$cit-q, "full-q":$full-q, "bibcodes":$res?response?docs?*?bibcode, "numFound":$res?response?numFound, "color":"warning"} )
         ,        
@@ -664,7 +675,7 @@ declare function app:search-cats-analysis($node as node(), $model as map(*)) {
             let $q := '=full:('|| string-join($q ! concat('"',.,'"'), " OR ") || ')'
             let $sub-q := $q
             let $q := $q || $base-query
-            let $res := adsabs:search($q, "bibcode")
+            let $res := if(exists($skip)) then () else adsabs:search($q, "bibcode")
             return
                 map:entry($tag, map{"q":$q , "tag-q":$sub-q, "bibcodes":$res?response?docs?*?bibcode, "numFound":$res?response?numFound, "color":"success" })
             })
