@@ -2,11 +2,11 @@ xquery version "3.1";
 
 module namespace app="http://olbin.org/exist/bibdb/templates";
 
-import module namespace templates="http://exist-db.org/xquery/html-templating";
-import module namespace lib="http://exist-db.org/xquery/html-templating/lib";
+import module namespace templates="http://exist-db.org/xquery/templates" ;
 import module namespace config="http://olbin.org/exist/bibdb/config" at "config.xqm";
 import module namespace adsabs="http://exist.jmmc.fr/jmmc-resources/adsabs" at "/db/apps/jmmc-resources/content/adsabs.xql";
 import module namespace jmmc-auth="http://exist.jmmc.fr/jmmc-resources/auth";
+import module namespace jmmc-dateutil="http://exist.jmmc.fr/jmmc-resources/dateutil" at "/db/apps/jmmc-resources/content/jmmc-dateutil.xql";
 
 import module namespace http = "http://expath.org/ns/http-client";
 declare namespace output = "http://www.w3.org/2010/xslt-xquery-serialization";
@@ -25,6 +25,7 @@ declare variable $app:LIST-JMMC-PAPERS  := "jmmc-papers";
 declare variable $app:LIST-NON-INTERFERO  := "jmmc-non-interfero";
 declare variable $app:LIST-OLBIN-REFEREED := "olbin-refereed";
 declare variable $app:LIST-OLBIN-BLOCKLIST := "olbin-blocklist";
+declare variable $app:LIST-OLBIN-CANDIDATES := "olbin-candidates";
 
 declare variable $app:ADS-COLOR := "primary";
 declare variable $app:OLBIN-COLOR := "success";
@@ -640,22 +641,71 @@ declare function app:search-cats($node as node(), $model as map(*)) {
 };
 
 declare function app:search-cats-analysis($node as node(), $model as map(*), $skip as xs:string?) {
+    let $start-one := util:system-time()
     let $sync-lists := try {if(exists($skip)) then () else app:sync-lists()} catch * {()}
     let $refresh := app:check-updates($node, $model)
     
-    let $log := util:log("info","app:search-cats-analysis()/1")
+    let $start-two := util:system-time()
+    
+    let $log := util:log("info","app:search-cats-analysis()/1 search groups and their bibcodes")
     let $jmmc-groups := $app:jmmc-doc//group[@tag and not(@tag='Others')]
     let $jmmc-groups-bibcodes := data($jmmc-groups/bibcode)
     
-    let $log := util:log("info","app:search-cats-analysis()/3")
+    let $log := util:log("info","app:search-cats-analysis()/2 prepare main queries (olbin, non-interfero, blocklist)")
     let $olbin-refereed-q := adsabs:library-get-search-expr($app:LIST-OLBIN-REFEREED)
     let $non-interfero-q := adsabs:library-get-search-expr($app:LIST-NON-INTERFERO)
+    let $candidates-q := adsabs:library-get-search-expr($app:LIST-OLBIN-CANDIDATES)
     let $blocklist-q := "( " || adsabs:library-get-search-expr($app:LIST-OLBIN-BLOCKLIST) || " OR bibstem:(" || string-join($adsabs:filtered-journals, " OR ") || ") )"
 
-    let $log := util:log("info","app:search-cats-analysis()/5")
+    let $log := util:log("info","app:search-cats-analysis()/3 prepare base query ")
     let $base-query := " full:(&quot;interferometer&quot; or &quot;interferometry&quot;) NOT fulltext_mtime:[&quot;" || current-dateTime() || "&quot; TO *] property:refereed - " || $olbin-refereed-q || " - " || $blocklist-q ||" - " || $non-interfero-q || " "
+    let $log := util:log("info","app:search-cats-analysis()/4 prepare jmmc query ")
     let $jmmc-query := " ( " || string-join( ($app:jmmc-doc/jmmc/query) , " or " ) || " ) "
     
+    
+    let $log := util:log("info","app:search-cats-analysis()/5 prepare group queries")
+    
+    
+    let $groups := let $skip:=true()
+        return 
+            map:merge((
+            for $group in $jmmc-groups
+                let $tag := data($group/@tag)
+                let $q := string-join($group/bibcode , " or ")
+                let $q := if($q) then "( citations(identifier:("||$q||")) )" else ()
+                let $cit-q := if($q) then $q else ()
+                let $full-q := ' full:"' || lower-case($group/@tag) ||'"'
+                let $q := string-join((data($q), "( " || $jmmc-query || ' and' || $full-q ||' )' )," or ")
+                let $q := $q || $base-query
+                let $res := if(exists($skip)) then () else adsabs:search($q, "bibcode")
+                return
+                    map:entry($tag, map{"q":$q, "cit-q":$cit-q, "full-q":$full-q, "bibcodes":$res?response?docs?*?bibcode, "numFound":$res?response?numFound, "color":"warning"} )
+            ,
+            map:for-each(app:get-interferometers(), function ($tag, $q){
+                let $q := '=full:('|| string-join($q ! concat('"',.,'"'), " OR ") || ')'
+                let $sub-q := $q
+                let $res := if(exists($skip)) then () else adsabs:search($q, "bibcode")
+                let $q := $q || $base-query
+                return
+                    map:entry($tag, map{"q":$q , "tag-q":$sub-q, "bibcodes":$res?response?docs?*?bibcode, "numFound":$res?response?numFound, "color":"success" })
+                })
+            ))
+    
+    let $log := util:log("info","app:search-cats-analysis()/7 prepare main query")
+    let $jmmc-tags-query := $jmmc-query || " and ( " || string-join( ( ($groups?*?full-q) ! concat( '(', ., ')' ) ) , " or ") || " ) "
+    
+    let $global-query := $base-query || "(" || string-join(( $groups?*?tag-q, $groups?*?cit-q , $jmmc-tags-query), ") or (") || ")"
+    let $global-link := adsabs:get-query-link($global-query , "View this list on ADS in another tab", "sort=bibcode")
+    let $all-new-bibcodes := adsabs:search-bibcodes($global-query)
+    
+    (: replace with last retrieved bibcodes   :) 
+    let $log := util:log("info","app:search-cats-analysis()/7 : found " || count($all-new-bibcodes))
+    let $clear-candidates := adsabs:library-clear($app:LIST-OLBIN-CANDIDATES)
+    let $fill-candidates := adsabs:library-add($app:LIST-OLBIN-CANDIDATES, $all-new-bibcodes)
+    
+    let $log := util:log("info","app:search-cats-analysis()/8 query each groups inside the candidates short list")
+    
+    (: Redo queries with candadates union   :)
     let $groups := map:merge((
         for $group in $jmmc-groups
             let $tag := data($group/@tag)
@@ -664,32 +714,32 @@ declare function app:search-cats-analysis($node as node(), $model as map(*), $sk
             let $cit-q := if($q) then $q else ()
             let $full-q := ' full:"' || lower-case($group/@tag) ||'"'
             let $q := string-join((data($q), "( " || $jmmc-query || ' and' || $full-q ||' )' )," or ")
-            let $q := $q || $base-query
-            let $res := if(exists($skip)) then () else adsabs:search($q, "bibcode")
+            let $quickq := $candidates-q || ' ' || $q 
+            let $log := util:log("info","app:search-cats-analysis()/8 "|| $quickq)
+            
+            let $res := adsabs:search($quickq, "bibcode")
+(:            let $q := $q || $base-query:)
+            let $q := $quickq
             return
                 map:entry($tag, map{"q":$q, "cit-q":$cit-q, "full-q":$full-q, "bibcodes":$res?response?docs?*?bibcode, "numFound":$res?response?numFound, "color":"warning"} )
-        ,        
-        util:log("info","app:search-cats-analysis()/6")
         ,
         map:for-each(app:get-interferometers(), function ($tag, $q){
             let $q := '=full:('|| string-join($q ! concat('"',.,'"'), " OR ") || ')'
             let $sub-q := $q
+            let $quickq := $q || $candidates-q
+            let $res := adsabs:search($quickq, "bibcode")
             let $q := $q || $base-query
-            let $res := if(exists($skip)) then () else adsabs:search($q, "bibcode")
             return
                 map:entry($tag, map{"q":$q , "tag-q":$sub-q, "bibcodes":$res?response?docs?*?bibcode, "numFound":$res?response?numFound, "color":"success" })
             })
         ))
         
-    let $log := util:log("info","app:search-cats-analysis()/7")
-    let $group-list := <ul class="list-inline"> {map:for-each( $groups, function ($key, $value) { <li>
-        { adsabs:get-query-link($value?q, app:badge(<span title="{$value?q}">{$key}</span>,$value("numFound"), $value("color"))) } </li> } ) } </ul>
     
     (: pre-load in a single stage :)
     let $bibcodes := distinct-values($groups?*?bibcodes)
     let $records := adsabs:get-records($bibcodes)
     
-    let $log := util:log("info","app:search-cats-analysis()/8")
+    let $log := util:log("info","app:search-cats-analysis()/9")
     let $by-bib-list := for $bibcode in subsequence($bibcodes,1,150) order by $bibcode descending
         let $record := adsabs:get-records($bibcode)
         let $tags := for $t in map:keys($groups) return if ( $groups($t)?bibcodes[. = $bibcode] ) then $t else ()
@@ -703,14 +753,16 @@ declare function app:search-cats-analysis($node as node(), $model as map(*), $sk
                 </ul>
             </li>
     
-    let $log := util:log("info","app:search-cats-analysis()/9")
-    let $jmmc-tags-query := $jmmc-query || " and ( " || string-join( ( ($groups?*?full-q) ! concat( '(', ., ')' ) ) , " or ") || " ) "
-    let $global-query := $base-query || "(" || string-join(( $groups?*?tag-q, $groups?*?cit-q , $jmmc-tags-query), ") or (") || ")"
-    let $global-link := adsabs:get-query-link($global-query , "View this list on ADS", "sort=bibcode")
+    let $log := util:log("info","app:search-cats-analysis()/10 prepare group list")
+    let $group-list := <ul class="list-inline"> {map:for-each( $groups, function ($key, $value) { <li>
+        { adsabs:get-query-link($value?q, app:badge(<span title="{$value?q}">{$key}</span>,$value("numFound"), $value("color"))) } </li> } ) } </ul>
+    
     
     let $log := util:log("info","app:search-cats-analysis()/11")
-    return ( $refresh, $group-list, <h2>{count($by-bib-list)}/{count($bibcodes)} publications to filter and review ({$global-link})</h2>,  <ol>{$by-bib-list}</ol> )
+    return ( $refresh, $group-list, <h2>{count($by-bib-list)}/{count($bibcodes)} publications to filter and review ({$global-link})</h2>,  <ol>{$by-bib-list}</ol>, <div>Elapsed time :&#160;{jmmc-dateutil:duration($start-one, $start-two, "synchro")}&#160;{jmmc-dateutil:duration($start-two, "query")}  </div> )
 };
+
+
 
 declare function app:check-tags-analysis($node as node(), $model as map(*)) {
     
@@ -894,8 +946,16 @@ let $res := ($res,
     if($existing-lib-names='olbin-blocklist') then () else
     let $bbs := $app:blocklist-doc//bibcode
     (:return count($bbs):)
-    return adsabs:create-library("olbin-blocklist", "Candidates (auto generated) papers sorted out from main Olbin list (reasons should be provided on bibdbmgr website). Helps to curate main lists.", true(), $bbs )
+    return adsabs:create-library("olbin-blocklist", "Excluded papers sorted out from main Olbin list (reasons should be provided on bibdbmgr website). Helps to curate main lists.", true(), $bbs )
 )
+
+let $res := ($res, 
+    if($existing-lib-names=$app:LIST-OLBIN-CANDIDATES) 
+    then ()
+    else adsabs:create-library($app:LIST-OLBIN-CANDIDATES, "Candidates (auto generated) papers sorted out from main Olbin list (reasons should be provided on bibdbmgr website). Helps to find new candidates.", true(), () )
+)
+
+
 let $telbibcodes := doc($app:telbib-vlti-url)//bibcode
 
 let $res := ($res, if($existing-lib-names='telbib-vlti') then () else adsabs:create-library("telbib-vlti", "Extract from telbib.", true(), () ) )
