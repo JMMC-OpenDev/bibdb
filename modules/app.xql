@@ -14,7 +14,7 @@ declare namespace rest="http://exquery.org/ns/restxq";
 (:declare variable $app:olbin-doc := doc($config:data-root||"/olbin.xml"); replace by app:get-olbin:)
 declare variable $app:jmmc-doc := doc($config:data-root||"/jmmc.xml");
 declare variable $app:curation-doc := doc($config:data-root||"/curation.xml")/*;
-declare variable $app:blacklist-doc := doc($config:data-root||"/blacklists.xml");
+declare variable $app:blocklist-doc := doc($config:data-root||"/blocklists.xml");
 (:declare variable $app:journal-names-doc := doc($config:data-root||"/journal-names.xml");:)
  declare variable $app:journal-names-doc := doc("/db/apps/bibdb-data/data/journal-names.xml");
 (: declare variable $app:ads-journals := doc($config:data-root||"/ads-journals.xml")//journal;:)
@@ -24,7 +24,7 @@ declare variable $app:blacklist-doc := doc($config:data-root||"/blacklists.xml")
 declare variable $app:LIST-JMMC-PAPERS  := "jmmc-papers";
 declare variable $app:LIST-NON-INTERFERO  := "jmmc-non-interfero";
 declare variable $app:LIST-OLBIN-REFEREED := "olbin-refereed";
-declare variable $app:LIST-OLBIN-BLACKLIST := "olbin-blacklist";
+declare variable $app:LIST-OLBIN-BLOCKLIST := "olbin-blocklist";
 
 declare variable $app:ADS-COLOR := "primary";
 declare variable $app:OLBIN-COLOR := "success";
@@ -358,16 +358,16 @@ declare function app:jmmc-references($node as node(), $model as map(*)) {
     let $olbin-doc := app:get-olbin()
     let $olbin-bibcodes := data($olbin-doc//bibcode) (: could be ads list ? :)
     let $non-interfero-bibcodes := data(adsabs:library-get-bibcodes($app:LIST-NON-INTERFERO))
-    let $blacklist-bibcodes := data(adsabs:library-get-bibcodes($app:LIST-OLBIN-BLACKLIST))
+    let $blocklist-bibcodes := data(adsabs:library-get-bibcodes($app:LIST-OLBIN-BLOCKLIST))
     let $jmmc-papers-bibcodes := data(adsabs:library-get-bibcodes($app:LIST-JMMC-PAPERS))
     
     let $olbin-refereed-q := adsabs:library-get-search-expr($app:LIST-OLBIN-REFEREED)
     let $non-interfero-q := adsabs:library-get-search-expr($app:LIST-NON-INTERFERO)
-    let $blacklist-q := "( " || adsabs:library-get-search-expr($app:LIST-OLBIN-BLACKLIST) || " OR bibstem:(" || string-join($adsabs:filtered-journals, " OR ") || ") )"
+    let $blocklist-q := "( " || adsabs:library-get-search-expr($app:LIST-OLBIN-BLOCKLIST) || " OR bibstem:(" || string-join($adsabs:filtered-journals, " OR ") || ") )"
 
     
-    (: Higlight jmmc-papers and blacklist present on ADS and missing in the xml db :)
-(:    let $missing-in-blacklist := for $record in adsabs:get-records($jmmc-papers-bibcodes[not(.=$jmmc-groups-bibcodes)]) return <li>&lt;!--{adsabs:get-title($record)}--&gt;<br/>{ serialize(<bibcode>{adsabs:get-bibcode($record)}</bibcode>)} </li>:)
+    (: Higlight jmmc-papers and blocklist present on ADS and missing in the xml db :)
+(:    let $missing-in-blocklist := for $record in adsabs:get-records($jmmc-papers-bibcodes[not(.=$jmmc-groups-bibcodes)]) return <li>&lt;!--{adsabs:get-title($record)}--&gt;<br/>{ serialize(<bibcode>{adsabs:get-bibcode($record)}</bibcode>)} </li>:)
 (:    let $missing-in-groups := if($missing-in-groups) then <div><h4>ADS jmmc-papers not present in local db</h4><ul> {$missing-in-groups}</ul></div> else ():)
     
     let $missing-jmmc-papers-bibcodes := $jmmc-groups-bibcodes[not(.=$jmmc-papers-bibcodes)]
@@ -390,12 +390,12 @@ declare function app:jmmc-references($node as node(), $model as map(*)) {
 (:    let $big-query := ( $big-query, " ", adsabs:get-query-link($big-q,<span data-trigger="hover" data-toggle="popover" data-original-title="This query" data-content="exclude OLBIN LIST of the preivous one"> - olbin-refereed</span>) ):)
     let $big-q := $big-q || " - " || $non-interfero-q
 (:    let $big-query := ( $big-query, " ", adsabs:get-query-link($big-q,<span data-trigger="hover" data-toggle="popover" data-original-title="This query" data-content="exclude JMMC complimentary LIST of the preivous one"> - jmmc-non-interfero</span>) ):)
-    let $big-q := $big-q || " - " || $blacklist-q
-    let $big-query := ( $big-query, " =&gt; ",adsabs:get-query-link($big-q,<span><b data-trigger="hover" data-toggle="popover" data-original-title="How to fix ?" data-content="1st add the missing OLBIN in its db 2nd login to ADS and select the ones to be added in jmmc-non-interfero or olbin-blacklist lists"> check any missing candidates</b></span>))
+    let $big-q := $big-q || " - " || $blocklist-q
+    let $big-query := ( $big-query, " =&gt; ",adsabs:get-query-link($big-q,<span><b data-trigger="hover" data-toggle="popover" data-original-title="How to fix ?" data-content="1st add the missing OLBIN in its db 2nd login to ADS and select the ones to be added in jmmc-non-interfero or olbin-blocklist lists"> check any missing candidates</b></span>))
     let $big-query := <p>{( <span>{$big-query}</span>)}</p>
     
     
-    let $legend := <p><i class="text-success glyphicon glyphicon-ok-circle"/> present in OLBIN, <i class="text-warning glyphicon glyphicon-plus-sign"/> missing , <i class="glyphicon glyphicon-ban-circle"/> non refereed (or SPIE, ASCS), <i class="glyphicon glyphicon-bookmark"/> non-interfero, <s>blacklisted</s>  </p>
+    let $legend := <p><i class="text-success glyphicon glyphicon-ok-circle"/> present in OLBIN, <i class="text-warning glyphicon glyphicon-plus-sign"/> missing , <i class="glyphicon glyphicon-ban-circle"/> non refereed (or SPIE, ASCS), <i class="glyphicon glyphicon-bookmark"/> non-interfero, <s>blocklisted</s>  </p>
     
     let $groups := 
         for $group in $jmmc-groups
@@ -410,7 +410,7 @@ declare function app:jmmc-references($node as node(), $model as map(*)) {
 (:            let $citations-link := ($citations-link, adsabs:get-query-link($q," - OLBIN ")):)
             let $q := $q || " property:refereed"
 (:            let $citations-link := ($citations-link, adsabs:get-query-link($q," - non-refereed ")):)
-            let $q := $q || " - " || $blacklist-q
+            let $q := $q || " - " || $blocklist-q
             let $citations-link := ($citations-link, " =&gt; ", adsabs:get-query-link($q,"check any missing candidates"))
             
             
@@ -425,7 +425,7 @@ declare function app:jmmc-references($node as node(), $model as map(*)) {
 (:                let $missing-citations := :)
 (:                    for $c in $citations order by $c where not($c=($olbin-bibcodes, $non-interfero-bibcodes)) :)
 (:                        let $links := ( <a href="http://jmmc.fr/bibdb/addPub?bibcode={encode-for-uri($c)}"><i class="text-warning glyphicon glyphicon-plus-sign"/>&#160;</a> , adsabs:get-link($c,())):)
-(:                        return <li>{if(app:is-blacklisted($c)) then <s>{$links}</s> else $links}</li>:)
+(:                        return <li>{if(app:is-blocklisted($c)) then <s>{$links}</s> else $links}</li>:)
 (:                let $non-interfero-citations := :)
 (:                    for $c in $citations order by $c where $c=$non-interfero-bibcodes:)
 (:                        return <li><i class="glyphicon glyphicon-bookmark"/>{adsabs:get-link($c,())}</li>                        :)
@@ -499,7 +499,7 @@ declare function app:jmmc-non-interfero($node as node(), $model as map(*)){
         <ol>{
         let $olbin-refereed-q := adsabs:library-get-search-expr($app:LIST-OLBIN-REFEREED)
         let $non-interfero-q := adsabs:library-get-search-expr($app:LIST-NON-INTERFERO)
-        let $blacklist-q := "( " || adsabs:library-get-search-expr($app:LIST-OLBIN-BLACKLIST) || " OR bibstem:(" || string-join($adsabs:filtered-journals, " OR ") || ") )"
+        let $blocklist-q := "( " || adsabs:library-get-search-expr($app:LIST-OLBIN-BLOCKLIST) || " OR bibstem:(" || string-join($adsabs:filtered-journals, " OR ") || ") )"
         
         let $interferometers :=  ( map:for-each(app:get-interferometers(), function($k,$v) { $v}) ! concat('"',.,'"') => string-join(" or ") ) ! concat('(',.,')')
         
@@ -511,8 +511,8 @@ declare function app:jmmc-non-interfero($node as node(), $model as map(*)){
 (:        let $big-query := ( $big-query, " ", adsabs:get-query-link($big-q,<span data-trigger="hover" data-toggle="popover" data-original-title="This query" data-content="exclude OLBIN LIST of the preivous one"> - olbin-refereed</span>) ):)
         let $big-q := $big-q || " - " || $non-interfero-q
 (:        let $big-query := ( $big-query, " ", adsabs:get-query-link($big-q,<span data-trigger="hover" data-toggle="popover" data-original-title="This query" data-content="exclude JMMC complimentary LIST of the preivous one"> - jmmc-non-interfero</span>) ):)
-        let $big-q := $big-q || " - " || $blacklist-q
-        let $big-query := ( $big-query, " =&gt; ",adsabs:get-query-link($big-q,<span><b data-trigger="hover" data-toggle="popover" data-original-title="How to fix ?" data-content="1st add the missing OLBIN in its db 2nd login to ADS and select the ones to be added in olbin-blacklist"> check any missing candidates</b></span>))
+        let $big-q := $big-q || " - " || $blocklist-q
+        let $big-query := ( $big-query, " =&gt; ",adsabs:get-query-link($big-q,<span><b data-trigger="hover" data-toggle="popover" data-original-title="How to fix ?" data-content="1st add the missing OLBIN in its db 2nd login to ADS and select the ones to be added in olbin-blocklist"> check any missing candidates</b></span>))
         let $q1:=<li>{$big-query}</li>
         
         (: The the big query behind:)
@@ -524,8 +524,8 @@ declare function app:jmmc-non-interfero($node as node(), $model as map(*)){
 (:        let $big-query := ( $big-query, " ", adsabs:get-query-link($big-q,<span data-trigger="hover" data-toggle="popover" data-original-title="This query" data-content="exclude OLBIN LIST of the preivous one"> - olbin-refereed</span>) ):)
         let $big-q := $big-q || " - " || $non-interfero-q
 (:        let $big-query := ( $big-query, " ", adsabs:get-query-link($big-q,<span data-trigger="hover" data-toggle="popover" data-original-title="This query" data-content="exclude JMMC complimentary LIST of the preivous one"> - jmmc-non-interfero</span>) ):)
-        let $big-q := $big-q || " - " || $blacklist-q
-        let $big-query := ( $big-query, " =&gt; ",adsabs:get-query-link($big-q,<span><b data-trigger="hover" data-toggle="popover" data-original-title="How to fix ?" data-content="1st add the missing OLBIN in its db 2nd login to ADS and select the ones to be added in olbin-blacklist"> check any missing candidates</b></span>))
+        let $big-q := $big-q || " - " || $blocklist-q
+        let $big-query := ( $big-query, " =&gt; ",adsabs:get-query-link($big-q,<span><b data-trigger="hover" data-toggle="popover" data-original-title="How to fix ?" data-content="1st add the missing OLBIN in its db 2nd login to ADS and select the ones to be added in olbin-blocklist"> check any missing candidates</b></span>))
         let $q2:=<li>{$big-query}</li>
             
             return <p>{($q1, $q2)}</p>
@@ -533,9 +533,9 @@ declare function app:jmmc-non-interfero($node as node(), $model as map(*)){
    </div>
 };
 
-declare function app:blacklist-summary($node as node(), $model as map(*)) {
+declare function app:blocklist-summary($node as node(), $model as map(*)) {
     <div>
-        <p>This list sort out some papers retrieved automatically but kept in blacklist so we can ignore them during operations. It is present on {adsabs:get-query-link(adsabs:library-get-search-expr($app:LIST-OLBIN-BLACKLIST), "ADS")} so each own can feed it easily. Its counterpart is also on this db side so we can group them. (We can imagine to provide multiple ads bibcode lists and merge automaticall ???) </p>
+        <p>This list sort out some papers retrieved automatically but kept in blocklist so we can ignore them during operations. It is present on {adsabs:get-query-link(adsabs:library-get-search-expr($app:LIST-OLBIN-BLOCKLIST), "ADS")} so each own can feed it easily. Its counterpart is also on this db side so we can group them. (We can imagine to provide multiple ads bibcode lists and merge automaticall ???) </p>
         <p>
     Some bibstem are currently ignored:
     <ul>
@@ -544,31 +544,31 @@ declare function app:blacklist-summary($node as node(), $model as map(*)) {
         }
         </ul>
     </p>
-    <p>{app:show-ads-lists("olbin-blacklist")}</p>
+    <p>{app:show-ads-lists("olbin-blocklist")}</p>
         
     <p>{app:check-updates($node, $model)}</p>
     </div>
 };
 
-declare function app:blacklist-list($node as node(), $model as map(*)) {
-    let $blacklist-bibcodes := data(adsabs:library-get-bibcodes($app:LIST-OLBIN-BLACKLIST))
-    let $blacklist-xml-bibcodes := data($app:blacklist-doc//bibcode)
+declare function app:blocklist-list($node as node(), $model as map(*)) {
+    let $blocklist-bibcodes := data(adsabs:library-get-bibcodes($app:LIST-OLBIN-BLOCKLIST))
+    let $blocklist-xml-bibcodes := data($app:blocklist-doc//bibcode)
     return 
         <ul>
-            <li>{app:badge("ADS",adsabs:get-libraries()?libraries?*[?name=$app:LIST-OLBIN-BLACKLIST ]?num_documents, $app:ADS-COLOR)}, {app:badge("XML",count($blacklist-xml-bibcodes), $app:OLBIN-COLOR)}</li>
+            <li>{app:badge("ADS",adsabs:get-libraries()?libraries?*[?name=$app:LIST-OLBIN-BLOCKLIST ]?num_documents, $app:ADS-COLOR)}, {app:badge("XML",count($blocklist-xml-bibcodes), $app:OLBIN-COLOR)}</li>
             <li> Curated :<ul>{
-              for $group in $app:blacklist-doc//group
+              for $group in $app:blocklist-doc//group
                 return <li>{data($group/description)}<ul class="list-inline"> {for $bibcode in $group/bibcode return <li>{adsabs:get-link($bibcode,())}</li>} </ul></li>
             }</ul></li>
             <li> Uncurated (i.e. only present onto ADS) :<ul>{
-              for $bibcode in $blacklist-bibcodes[not(.=$blacklist-xml-bibcodes)]
+              for $bibcode in $blocklist-bibcodes[not(.=$blocklist-xml-bibcodes)]
                 return <li>{adsabs:get-link($bibcode,())}</li>
             }</ul></li>
         </ul>
 };
 
-declare function app:is-blacklisted($bibcode){
-    $app:blacklist-doc//bibcode=$bibcode
+declare function app:is-blocklisted($bibcode){
+    $app:blocklist-doc//bibcode=$bibcode
 };
 
 
@@ -650,10 +650,10 @@ declare function app:search-cats-analysis($node as node(), $model as map(*), $sk
     let $log := util:log("info","app:search-cats-analysis()/3")
     let $olbin-refereed-q := adsabs:library-get-search-expr($app:LIST-OLBIN-REFEREED)
     let $non-interfero-q := adsabs:library-get-search-expr($app:LIST-NON-INTERFERO)
-    let $blacklist-q := "( " || adsabs:library-get-search-expr($app:LIST-OLBIN-BLACKLIST) || " OR bibstem:(" || string-join($adsabs:filtered-journals, " OR ") || ") )"
+    let $blocklist-q := "( " || adsabs:library-get-search-expr($app:LIST-OLBIN-BLOCKLIST) || " OR bibstem:(" || string-join($adsabs:filtered-journals, " OR ") || ") )"
 
     let $log := util:log("info","app:search-cats-analysis()/5")
-    let $base-query := " full:(&quot;interferometer&quot; or &quot;interferometry&quot;) NOT fulltext_mtime:[&quot;" || current-dateTime() || "&quot; TO *] property:refereed - " || $olbin-refereed-q || " - " || $blacklist-q ||" - " || $non-interfero-q || " "
+    let $base-query := " full:(&quot;interferometer&quot; or &quot;interferometry&quot;) NOT fulltext_mtime:[&quot;" || current-dateTime() || "&quot; TO *] property:refereed - " || $olbin-refereed-q || " - " || $blocklist-q ||" - " || $non-interfero-q || " "
     let $jmmc-query := " ( " || string-join( ($app:jmmc-doc/jmmc/query) , " or " ) || " ) "
     
     let $groups := map:merge((
@@ -690,7 +690,7 @@ declare function app:search-cats-analysis($node as node(), $model as map(*), $sk
     let $records := adsabs:get-records($bibcodes)
     
     let $log := util:log("info","app:search-cats-analysis()/8")
-    let $by-bib-list := for $bibcode in subsequence($bibcodes,1,50) order by $bibcode descending
+    let $by-bib-list := for $bibcode in subsequence($bibcodes,1,150) order by $bibcode descending
         let $record := adsabs:get-records($bibcode)
         let $tags := for $t in map:keys($groups) return if ( $groups($t)?bibcodes[. = $bibcode] ) then $t else ()
         let $labels := $tags ! ( <li><span class="label label-{$groups(.)?color}">{data(.)}</span></li> )
@@ -728,7 +728,7 @@ declare function app:check-tags-analysis($node as node(), $model as map(*)) {
     
     let $olbin-refereed-q := adsabs:library-get-search-expr($app:LIST-OLBIN-REFEREED)
     let $non-interfero-q := adsabs:library-get-search-expr($app:LIST-NON-INTERFERO)
-    let $blacklist-q := "( " || adsabs:library-get-search-expr($app:LIST-OLBIN-BLACKLIST) || " OR bibstem:(" || string-join($adsabs:filtered-journals, " OR ") || ") )"
+    let $blocklist-q := "( " || adsabs:library-get-search-expr($app:LIST-OLBIN-BLOCKLIST) || " OR bibstem:(" || string-join($adsabs:filtered-journals, " OR ") || ") )"
     
     let $log := util:log("info","app:check-tags-analysis()/5")
     
@@ -891,10 +891,10 @@ let $res := ($res,
 )
 
 let $res := ($res, 
-    if($existing-lib-names='olbin-blacklist') then () else
-    let $bbs := $app:blacklist-doc//bibcode
+    if($existing-lib-names='olbin-blocklist') then () else
+    let $bbs := $app:blocklist-doc//bibcode
     (:return count($bbs):)
-    return adsabs:create-library("olbin-blacklist", "Candidates (auto generated) papers sorted out from main Olbin list (reasons should be provided on bibdbmgr website). Helps to curate main lists.", true(), $bbs )
+    return adsabs:create-library("olbin-blocklist", "Candidates (auto generated) papers sorted out from main Olbin list (reasons should be provided on bibdbmgr website). Helps to curate main lists.", true(), $bbs )
 )
 let $telbibcodes := doc($app:telbib-vlti-url)//bibcode
 

@@ -10,6 +10,4 @@
     <target>bibdb</target>
     <prepare>pre-install.xql</prepare>
     <finish/>
-
-<deployed>2020-11-05T07:50:19.093Z</deployed>
 </meta>
