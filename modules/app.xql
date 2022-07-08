@@ -642,8 +642,9 @@ declare function app:search-cats($node as node(), $model as map(*)) {
 
 declare function app:search-cats-analysis($node as node(), $model as map(*), $skip as xs:string?) {
     let $start-one := util:system-time()
-    let $sync-lists := try {if(exists($skip)) then () else app:sync-lists()} catch * {()}
-    let $refresh := app:check-updates($node, $model)
+    let $sync-lists := try {if(exists($skip)) then () else app:sync-lists(true())} catch * {()}
+    let $refresh := if(false()) then app:check-updates($node, $model) else ()
+ 
     
     let $start-two := util:system-time()
     
@@ -658,16 +659,14 @@ declare function app:search-cats-analysis($node as node(), $model as map(*), $sk
     let $blocklist-q := "( " || adsabs:library-get-search-expr($app:LIST-OLBIN-BLOCKLIST) || " OR bibstem:(" || string-join($adsabs:filtered-journals, " OR ") || ") )"
 
     let $log := util:log("info","app:search-cats-analysis()/3 prepare base query ")
-    let $base-query := " full:(&quot;interferometer&quot; or &quot;interferometry&quot;) NOT fulltext_mtime:[&quot;" || current-dateTime() || "&quot; TO *] property:refereed - " || $olbin-refereed-q || " - " || $blocklist-q ||" - " || $non-interfero-q || " "
+    let $base-query := " full:(&quot;interferometer&quot; or &quot;interferometry&quot; or &quot;aperture masking&quot;) NOT fulltext_mtime:[&quot;" || current-dateTime() || "&quot; TO *] property:refereed - " || $olbin-refereed-q || " - " || $blocklist-q ||" - " || $non-interfero-q || " "
     let $log := util:log("info","app:search-cats-analysis()/4 prepare jmmc query ")
     let $jmmc-query := " ( " || string-join( ($app:jmmc-doc/jmmc/query) , " or " ) || " ) "
     
     
     let $log := util:log("info","app:search-cats-analysis()/5 prepare group queries")
     
-    
-    let $groups := let $skip:=true()
-        return 
+    let $groups := 
             map:merge((
             for $group in $jmmc-groups
                 let $tag := data($group/@tag)
@@ -676,18 +675,18 @@ declare function app:search-cats-analysis($node as node(), $model as map(*), $sk
                 let $cit-q := if($q) then $q else ()
                 let $full-q := ' full:"' || lower-case($group/@tag) ||'"'
                 let $q := string-join((data($q), "( " || $jmmc-query || ' and' || $full-q ||' )' )," or ")
+                let $quickq := $candidates-q || ' ' || $q 
                 let $q := $q || $base-query
-                let $res := if(exists($skip)) then () else adsabs:search($q, "bibcode")
                 return
-                    map:entry($tag, map{"q":$q, "cit-q":$cit-q, "full-q":$full-q, "bibcodes":$res?response?docs?*?bibcode, "numFound":$res?response?numFound, "color":"warning"} )
+                    map:entry($tag, map{"q":$q, "quickq":$quickq, "cit-q":$cit-q, "full-q":$full-q, "color":"warning"} )
             ,
             map:for-each(app:get-interferometers(), function ($tag, $q){
                 let $q := '=full:('|| string-join($q ! concat('"',.,'"'), " OR ") || ')'
                 let $sub-q := $q
-                let $res := if(exists($skip)) then () else adsabs:search($q, "bibcode")
+                let $quickq := $candidates-q || ' ' || $q 
                 let $q := $q || $base-query
                 return
-                    map:entry($tag, map{"q":$q , "tag-q":$sub-q, "bibcodes":$res?response?docs?*?bibcode, "numFound":$res?response?numFound, "color":"success" })
+                    map:entry($tag, map{"q":$q, "quickq":$quickq, "tag-q":$sub-q, "color":"success" })
                 })
             ))
     
@@ -705,38 +704,20 @@ declare function app:search-cats-analysis($node as node(), $model as map(*), $sk
     
     let $log := util:log("info","app:search-cats-analysis()/8 query each groups inside the candidates short list")
     
-    (: Redo queries with candadates union   :)
+    (: Redo queries with candadates union to avoid huge gloabl search :)
     let $groups := map:merge((
-        for $group in $jmmc-groups
-            let $tag := data($group/@tag)
-            let $q := string-join($group/bibcode , " or ")
-            let $q := if($q) then "( citations(identifier:("||$q||")) )" else ()
-            let $cit-q := if($q) then $q else ()
-            let $full-q := ' full:"' || lower-case($group/@tag) ||'"'
-            let $q := string-join((data($q), "( " || $jmmc-query || ' and' || $full-q ||' )' )," or ")
-            let $quickq := $candidates-q || ' ' || $q 
-            let $log := util:log("info","app:search-cats-analysis()/8 "|| $quickq)
-            
-            let $res := adsabs:search($quickq, "bibcode")
-(:            let $q := $q || $base-query:)
-            let $q := $quickq
+        map:for-each($groups, function ($tag, $group){
+            let $quickq := $group("quickq")
+            let $res := adsabs:search($quickq, "bibcode", false())
+            let $log := util:log("info","app:search-cats-analysis()/8 ("|| count($res?response?docs?*?bibcode) || ") " || $quickq)
             return
-                map:entry($tag, map{"q":$q, "cit-q":$cit-q, "full-q":$full-q, "bibcodes":$res?response?docs?*?bibcode, "numFound":$res?response?numFound, "color":"warning"} )
-        ,
-        map:for-each(app:get-interferometers(), function ($tag, $q){
-            let $q := '=full:('|| string-join($q ! concat('"',.,'"'), " OR ") || ')'
-            let $sub-q := $q
-            let $quickq := $q || $candidates-q
-            let $res := adsabs:search($quickq, "bibcode")
-            let $q := $q || $base-query
-            return
-                map:entry($tag, map{"q":$q , "tag-q":$sub-q, "bibcodes":$res?response?docs?*?bibcode, "numFound":$res?response?numFound, "color":"success" })
+                map:entry($tag, map:merge(( $group, map{"bibcodes":$res?response?docs?*?bibcode, "numFound":$res?response?numFound})))
             })
         ))
-        
     
     (: pre-load in a single stage :)
-    let $bibcodes := distinct-values($groups?*?bibcodes)
+(:    let $bibcodes := distinct-values($groups?*?bibcodes):)
+    let $bibcodes:= $all-new-bibcodes
     let $records := adsabs:get-records($bibcodes)
     
     let $log := util:log("info","app:search-cats-analysis()/9")
@@ -909,9 +890,19 @@ declare function app:check-update($libraries, $list-name, $bibcodes as xs:string
 };
 
 declare function app:sync-lists(){
+    app:sync-lists(false())
+};
+
+declare function app:sync-lists($force-clear){
 let $clear-olbin := cache:remove($app:expirable-cache-name, "olbin-xml")
 
-let $force-clear := if(false()) then cache:clear($adsabs:expirable-cache-name) else ()
+let $force-clear := if($force-clear) 
+    then 
+        (
+        cache:clear($adsabs:expirable-cache-name),
+        util:log("info", "Clear adsabs cache")
+        )
+    else ()
 
 let $entries :=  app:get-olbin()//e
 let $bibcodes := $entries//bibcode
@@ -970,7 +961,8 @@ let $res := ( $res, for $tag in app:get-olbin()/publications/tag
         where $list-name = $existing-lib-names
         return app:check-update($fresh-libraries, $list-name, $bibcodes, false())
     )
-    
+
+(:  next lines could be skipped if not changes occur previously :)
 let $clear-libraries := cache:remove($adsabs:expirable-cache-name, "/biblib/libraries")
 let $ask-again := adsabs:get-libraries()
 
