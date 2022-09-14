@@ -1,1 +1,1 @@
-Source code of the management application that help to update the [OLBIN publication database](//publications.jmmc.fr)
+Source code of the management application that helps to update the [OLBIN publication database](//publications.jmmc.fr)
