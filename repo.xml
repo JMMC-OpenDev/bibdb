@@ -1,13 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <meta xmlns="http://exist-db.org/xquery/repo">
-    <description>OLBIN publications database</description>
-    <author>G. Mella</author>
-    <website/>
-    <status>alpha</status>
-    <license>GNU-LGPL</license>
-    <copyright>true</copyright>
-    <type>application</type>
-    <target>bibdb</target>
-    <prepare>pre-install.xql</prepare>
-    <finish/>
+  <description>OLBIN publications database</description>
+  <author>G. Mella</author>
+  <website/>
+  <status>alpha</status>
+  <license>GNU-LGPL</license>
+  <copyright>true</copyright>
+  <type>application</type>
+  <target>bibdb</target>
+  <prepare>pre-install.xql</prepare>
+  <finish/>
+  <changelog>
+    <change xmlns="" version="0.5.1" release-date="2023-01-24T12:34">
+      <h3>2022-09-21</h3>
+      <ul>
+        <li>Support redirection onto ADS for targets in addition to tags.</li>
+      </ul>
+    </change>
+  </changelog>
 </meta>
