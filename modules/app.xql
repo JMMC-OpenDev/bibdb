@@ -24,6 +24,8 @@ declare variable $app:blocklist-doc := doc($config:data-root||"/blocklists.xml")
 declare variable $app:LIST-JMMC-PAPERS  := "jmmc-papers";
 declare variable $app:LIST-NON-INTERFERO  := "jmmc-non-interfero";
 declare variable $app:LIST-OLBIN-REFEREED := "olbin-refereed";
+declare variable $app:LIST-OLBIN-TAG-REVIEWED := "olbin-tag-reviewed";
+
 declare variable $app:LIST-OLBIN-BLOCKLIST := "olbin-blocklist";
 declare variable $app:LIST-OLBIN-CANDIDATES := "olbin-candidates";
 
@@ -373,7 +375,7 @@ declare function app:jmmc-references($node as node(), $model as map(*)) {
 
     let $missing-jmmc-papers-bibcodes := $jmmc-groups-bibcodes[not(.=$jmmc-papers-bibcodes)]
     let $missing-jmmc-papers := if(exists($missing-jmmc-papers-bibcodes)) then "identifier:("|| string-join($missing-jmmc-papers-bibcodes, ' or ')||")" else ()
-    let $missing-jmmc-papers := if($missing-jmmc-papers) then adsabs:get-query-link($missing-jmmc-papers,"Please add next jmmc-papers in ADS or move out xmldb") else ()
+    let $missing-jmmc-papers := if($missing-jmmc-papers) then adsabs:get-query-link($missing-jmmc-papers,"Please add next jmmc-papers in ADS") else ()
 (:        <div><h4>ADS jmmc-papers contains all xmldb papers</h4></div>:)
 
 
@@ -385,7 +387,7 @@ declare function app:jmmc-references($node as node(), $model as map(*)) {
     (: The the big query behind:)
 
     let $base-query := "( " || string-join( ($app:jmmc-doc/jmmc/query) , " or " ) || " ) "
-    let $big-q := "( " || $base-query || " and full:( " ||string-join( $jmmc-groups/@tag[not(.='tbd')] , " or ") || ") ) or ( citations(identifier:(" || string-join( $jmmc-groups-bibcodes , " or ") || ")) )"
+    let $big-q := "( " || $base-query || " and full:( " ||string-join( ($jmmc-groups/@tag[not(.='tbd')], $jmmc-groups//q ) , " or ") || ") ) or ( citations(identifier:(" || string-join( $jmmc-groups-bibcodes , " or ") || ")) )"
     let $big-query := adsabs:get-query-link($big-q,<b data-trigger="hover" data-toggle="popover" data-original-title="This query" data-content="is a naïve one on top of the citations of jmmc papers and some full text query on top of associated kaywords">Global search</b>)
     let $big-q := $big-q || " - " || $olbin-refereed-q
 (:    let $big-query := ( $big-query, " ", adsabs:get-query-link($big-q,<span data-trigger="hover" data-toggle="popover" data-original-title="This query" data-content="exclude OLBIN LIST of the preivous one"> - olbin-refereed</span>) ):)
@@ -405,7 +407,8 @@ declare function app:jmmc-references($node as node(), $model as map(*)) {
             let $q := string-join($group/bibcode , " or ")
             let $q := if($q) then "( citations(identifier:("||$q||")) )" else ()
             let $citations-link := if($q) then adsabs:get-query-link($q,"view all citations on ADS") else ()
-            let $q := string-join((data($q), "( " || $base-query || ' and full:"' || lower-case($group/@tag) ||'" )' )," or ")
+            let $full-q := ' full:(' || string-join(($group/@tag,$group/q) ! concat('"',lower-case(.),'"'), " OR ") ||')'
+            let $q := string-join((data($q), "( " || $base-query || ' and ' || $full-q || ' )' )," or ")
             let $citations-link := ($citations-link, adsabs:get-query-link($q," + keywords "))
             let $q := $q || " - " || $olbin-refereed-q
 (:            let $citations-link := ($citations-link, adsabs:get-query-link($q," - OLBIN ")):)
@@ -590,7 +593,8 @@ declare function app:author-references($node as node(), $model as map(*), $autho
             let $q := string-join($group/bibcode , " or ")
             let $q := if($q) then "( citations(identifier:("||$q||")) )" else ()
             let $citations-link := if($q) then adsabs:get-query-link($q,"view all citations on ADS") else ()
-            let $q := string-join((data($q), "( " || $base-query || ' and full:"' || lower-case($group/@tag) ||'" )' )," or ")
+            let $full-q := ' full:(' || string-join(($group/@tag,$group/q) ! concat('"',lower-case(.),'"'), " OR ") ||')'
+            let $q := string-join((data($q), "( " || $base-query || ' and ' || $full-q || ' )' )," or ")
             let $citations-link := ($citations-link, adsabs:get-query-link($q," + keywords "))
 
             let $ol := for $record in $records
@@ -620,8 +624,8 @@ declare function app:author-references($node as node(), $model as map(*), $autho
         return if($ol or $cit-ol) then
                 <div>
 
-                <h2>Concepteur et responsable <b data-toggle="popover" data-trigger="hover" data-original-title="{$title}" data-content="">{$tag}</b> :</h2>
-                {if ($ol) then <div><h3>Co-auteur des publications {$tag}</h3><ul>{$ol}</ul></div> else ()}
+                <h2><b data-toggle="popover" data-trigger="hover" data-original-title="{$title}" data-content="">{$tag}</b> :</h2>
+                {if ($ol) then <div><h3>Co-auteur des publications</h3><ul>{$ol}</ul></div> else ()}
                 {if ($cit-ol) then <div><h3>Publications citant le logiciel:</h3><ol>{$cit-ol}</ol></div> else ()}
                 </div>
                 else ()
@@ -675,11 +679,11 @@ declare function app:search-cats-analysis($node as node(), $model as map(*), $sk
             map:merge((
             for $group in $jmmc-groups
                 let $tag := data($group/@tag)
-                let $q := string-join($group/bibcode , " or ")
+                let $q := string-join($group/bibcode , " OR ")
                 let $q := if($q) then "( citations(identifier:("||$q||")) )" else ()
                 let $cit-q := if($q) then $q else ()
-                let $full-q := ' full:"' || lower-case($group/@tag) ||'"'
-                let $q := string-join((data($q), "( " || $jmmc-query || ' and' || $full-q ||' )' )," or ")
+                let $full-q := ' full:(' || string-join(($group/@tag,$group/q) ! concat('"',lower-case(.),'"'), " OR ") ||')'
+                let $q := string-join((data($q), "( " || $jmmc-query || ' AND' || $full-q ||' )' )," OR ")
                 let $quickq := $candidates-q || ' ' || $q
                 let $q := $q || $base-query
                 return
@@ -762,6 +766,24 @@ declare function app:search-cats-analysis($node as node(), $model as map(*), $sk
 };
 
 
+declare
+%rest:GET
+    %rest:path("/add-to-library/{$list}")
+    %rest:query-param("bibcodes", "{$bibcodes}")
+function app:do-add-to-library($list, $bibcodes) {
+    if (jmmc-auth:isLogged()) then
+        let $do := adsabs:library-add($list, $bibcodes)
+        let $log := util:log("info" ,"Adding next bibcodes to " || $list  || " : " || string-join($bibcodes,","))
+        return
+            "Reference added"
+    else
+        error(xs:QName("app:error"), "Please login")
+
+};
+
+declare function app:add-to-library($node as node(), $model as map(*), $list as xs:string, $bibcodes as xs:string*) {
+    app:do-add-to-library($list, $bibcodes)
+};
 
 declare function app:check-tags-analysis($node as node(), $model as map(*)) {
 
@@ -779,21 +801,22 @@ declare function app:check-tags-analysis($node as node(), $model as map(*)) {
 
     let $olbin-refereed-q := adsabs:library-get-search-expr($app:LIST-OLBIN-REFEREED)
     let $non-interfero-q := adsabs:library-get-search-expr($app:LIST-NON-INTERFERO)
+    let $olbin-tag-reviewed-q := adsabs:library-get-search-expr($app:LIST-OLBIN-TAG-REVIEWED)
     let $blocklist-q := "( " || adsabs:library-get-search-expr($app:LIST-OLBIN-BLOCKLIST) || " OR bibstem:(" || string-join($adsabs:filtered-journals, " OR ") || ") )"
 
     let $log := util:log("info","app:check-tags-analysis()/5")
 
-    let $base-query := " " || $olbin-refereed-q || " - docs(library/evb9oMKNQNStAy66cyKtJg) "
-    let $jmmc-query := " ( " || string-join( ($app:jmmc-doc/jmmc/query) , " or " ) || " ) "
+    let $base-query := " " || $olbin-refereed-q || " - " || $olbin-tag-reviewed-q || " "
+    let $jmmc-query := " ( " || string-join( ($app:jmmc-doc/jmmc/query) , " OR " ) || " ) "
 
     let $groups := map:merge((
         for $group in $jmmc-groups
             let $tag := data($group/@tag)
-            let $q := string-join($group/bibcode , " or ")
+            let $q := string-join($group/bibcode , " OR ")
             let $q := if($q) then "( citations(identifier:("||$q||")) )" else ()
             let $cit-q := if($q) then $q else ()
-            let $full-q := ' full:"' || lower-case($group/@tag) ||'"'
-            let $q := string-join((data($q), "( " || $jmmc-query || ' and' || $full-q ||' )' )," or ")
+            let $full-q := ' full:(' || string-join(($group/@tag,$group/q) ! concat('"',lower-case(.),'"'), " OR ") ||')'
+            let $q := string-join((data($q), "( " || $jmmc-query || ' AND ' || $full-q ||' )' )," OR ")
             let $q := $q || $base-query
             let $res := adsabs:search-bibcodes($q)
             return
@@ -846,9 +869,6 @@ declare function app:check-tags-analysis($node as node(), $model as map(*)) {
                 <ul class="list-inline">
                     <li><button id="{$bibcode}" class="flagtag btn btn-default">Flag tag review</button> / <a class="btn btn-default" target="_blank" href="{$olbin-add-link}">update OLBIN's tags</a>&#160;</li>
                     { $labels }
-                    <!--<form action="https:ui.adsabs.harvard.edu/v1/biblib/documents/p4drdURkRnqKPBWx6zJ-pA" method="POST"><input type="hidden" name="action" value="add"/><input type="hidden" name="bibcode" value="{$bibcode}"/><button>Tag OK / hide me</button></form>-->
-
-
                 </ul>
             </li>
 
@@ -868,9 +888,9 @@ declare function app:check-tags-analysis($node as node(), $model as map(*)) {
                 var tags = [];
                 li.find(".candidate-tag").each(function(){tags.push($(this).text());});
 
-                $.ajax( { url: "/exist/restxq/add-to-library/olbin-tag-reviewed",  data: { bibcodes: bibcode, tags: tags} } )
+                $.ajax( { url: "add-to-library.html",  data: { bibcodes: bibcode, tags: tags, list: "olbin-tag-reviewed"} } )
                 .done(function() { li.remove(); })
-                .fail(function() { alert( "Sorry can't process your request, please Sign In first" ); });
+                .fail(function() { alert( "Sorry can't process your request, please try to Sign In first" ); });
             }
         });
         ]]>

@@ -11,6 +11,14 @@
   <prepare>pre-install.xql</prepare>
   <finish/>
   <changelog>
+    <change xmlns="" version="0.5.2" >
+      <h3>2023-09-14</h3>
+      <ul>
+        <li>Support many tags per jmmc tool.</li>
+        <li>Support AJAX for tag review process.</li>
+        <li>Minor cleanup.</li>
+      </ul>
+    </change>
     <change xmlns="" version="0.5.1" release-date="2023-01-24T12:34">
       <h3>2022-09-21</h3>
       <ul>
