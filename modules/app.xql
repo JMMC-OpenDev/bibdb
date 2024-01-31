@@ -8,9 +8,15 @@ import module namespace adsabs="http://exist.jmmc.fr/jmmc-resources/adsabs" at "
 import module namespace jmmc-auth="http://exist.jmmc.fr/jmmc-resources/auth";
 import module namespace jmmc-dateutil="http://exist.jmmc.fr/jmmc-resources/dateutil" at "/db/apps/jmmc-resources/content/jmmc-dateutil.xql";
 
+import module namespace kwic="http://exist-db.org/xquery/kwic";
+
+
 import module namespace http = "http://expath.org/ns/http-client";
 declare namespace output = "http://www.w3.org/2010/xslt-xquery-serialization";
 declare namespace rest="http://exquery.org/ns/restxq";
+
+declare namespace ads="http://ads.harvard.edu/schema/abs/1.1/abstracts";
+
 (:declare variable $app:olbin-doc := doc($config:data-root||"/olbin.xml"); replace by app:get-olbin:)
 declare variable $app:jmmc-doc := doc($config:data-root||"/jmmc.xml");
 declare variable $app:curation-doc := doc($config:data-root||"/curation.xml")/*;
@@ -36,6 +42,101 @@ declare variable $app:expirable-cache-name :="bibdbmgrcache";
 declare variable $app:expirable-cache := cache:create($app:expirable-cache-name,map { "expireAfterAccess": 600000 }); (: 10min :)
 
 declare variable $app:telbib-vlti-url := "https://telbib.eso.org/api.php?telescope[]=vlti+visitor&amp;telescope[]=vlti";
+
+
+declare function app:plots($node as node(), $model as map(*)){
+<script src='https://cdn.plot.ly/plotly-2.26.0.min.js'></script>,
+<div id="myDiv"/>,
+let $olbin := app:get-olbin()
+let $a-tags := sort( $olbin//category[name="Astrophysical topic"]//tag )
+
+let $min-bibcode-count := 50
+
+let $log := util:log("info", "prepare data")
+let $tag-map := map:merge(
+    for $t in $olbin//e/tag group by $tag := data($t)
+    where $tag=$a-tags
+    let $bibcodes := data($t/../bibcode)
+    where count($bibcodes)>$min-bibcode-count
+    return map:entry($tag, $bibcodes)
+    )
+let $log := util:log("info", "tag map done")
+
+let $records := adsabs:get-records($olbin//bibcode)
+(:
+ let $keywords-bibcodes := map:merge(
+    for $k in $records//ads:keyword group by $kw := replace(lower-case($k), "[^a-zA-Z :]","")
+        return map:entry($kw, data($k/../ads:bibcode))
+    )
+let $keywords := map:keys($keywords-bibcodes)
+:)
+let $keywords := for $k in $records//ads:keyword group by $kw := replace(lower-case($k), "[^a-zA-Z :]","")
+        return data($kw)
+
+let $kw-map := map:merge(
+    for $k in $records//ads:keyword group by $kw := replace(lower-case($k), "[^a-zA-Z :]","")
+    let $bibcodes := data($k/../../ads:bibcode)
+    where count($bibcodes)>$min-bibcode-count
+    return
+        map:entry($kw, $bibcodes )
+    )
+
+
+let $log := util:log("info", "kw map done")
+
+(:
+let $log := for $kw in map:keys($kw-map)
+        let $kw-bibcodes := map:get($kw-map, $kw)
+        return util:log("info", "kw  "|| $kw || " has " || count($kw-bibcodes))
+:)
+
+let $tag-keys := for $tag in map:keys($tag-map)
+        let $tag-bibcodes := map:get($tag-map, $tag)
+        order by count($tag-bibcodes) descending
+        return $tag
+let $kw-keys := for $kw in map:keys($kw-map)
+                let $kw-bibcodes := map:get($kw-map, $kw)
+                order by count($kw-bibcodes) descending
+                return $kw
+
+let $z :=
+        for $tag in $tag-keys
+        let $tag-bibcodes := map:get($tag-map, $tag)
+        let $toto :=
+        for $kw in $kw-keys
+        let $kw-bibcodes := map:get($kw-map, $kw)
+
+            return count($tag-bibcodes[.=$kw-bibcodes])
+        return
+            "[" || string-join($toto,"," ) || "]"
+let $log := util:log("info", " z done")
+
+
+return
+    <script>
+    var data = [
+    {{
+        z: [{string-join($z, ",&#10;")}],
+        x: [{string-join($tag-keys ! concat("'", ., "'"), ", ")}],
+        y: [{string-join($kw-keys ! concat("'", ., "'"), ", ")}],
+
+        type: 'heatmap',
+    }}
+    ];
+    var layout = {{
+        title: 'ADS keywords vs Astrophysical results tags {count($tag-keys)}x{count($kw-keys)}',
+        width: 1000,
+        height: 1000,
+        xaxis: {{visible: false}},
+        yaxis: {{visible: false}},
+    }};
+
+    Plotly.newPlot('myDiv', data, layout);
+    </script>
+
+};
+
+
 
 declare function app:get-olbin(){
     let $xml := cache:get($app:expirable-cache-name, "olbin-xml")
@@ -230,7 +331,7 @@ declare function app:olbin-ads-sample-citation-link($node as node(), $model as m
 
 
 declare function app:summary($node as node(), $model as map(*)) {
-    <p>Welcome on the OLBIN  publications management area. <a href="http://www.jmmc.fr/bibdb">Visit the current portal.</a>
+    <p>Welcome on the OLBIN  publications management area. <a href="https://publications.olbin.org/">Visit the current portal.</a>
     <br/> This web area is a <b>*work in progress*</b>.
     <br/>Main goals are:
     <ul>
@@ -241,6 +342,8 @@ declare function app:summary($node as node(), $model as map(*)) {
     <br/>Please contact the <a href="http://www.jmmc.fr/support">jmmc user support</a> for any remark, question or idea. Directions to enter the collaborative mode should come ...
     </p>
 };
+
+
 
 
 
@@ -352,6 +455,49 @@ declare function app:check-updates($node as node(), $model as map(*)) {
             else
                 util:log("info", "we seems uptodate")
         else () (: nothing to do : next call will come later, this avoid 2 calls instead of 1 :)
+};
+
+
+
+declare function app:hierarch-tags($node as node(), $model as map(*)) {
+    let $olbin-doc := app:get-olbin()
+    let $childrens := map {
+        "JMMC": data($olbin-doc//category[name="HIDDEN"]/tag)
+        ,'SUSI' : ('PAVO')
+        ,'VLTI' : ('GRAVITY', 'AMBER', 'MIDI', 'PIONIER', 'VINCI', 'PRIMA', 'MATISSE', 'ASGARD')
+        ,'AAT' : ('MAPPIT')
+        ,'LBTI' : ('LMIRCam', 'NOMIC', 'PEPSI', 'ALES')
+        ,'CHARA' : ('CHARA', 'MIRC', 'VEGA', 'PAVO', 'CLIMB', 'VEGA Friend', 'SPICA', 'MIRC-X', 'MYSTIC')
+        ,'SUBARU' : ('GLINT')
+        ,'VLT' : ('SPHERE')
+        ,'JWST' : ('AMI')
+        ,'NPOI' : ('VISION')
+    }
+    let $parents := map:merge(
+        map:for-each($childrens, function($k, $vs){ for $v in $vs where $v!=$k return map:entry($v, $k) } )
+    )
+
+    let $to-fix := for $e in reverse($olbin-doc//e)
+        let $current-tags := for $tag in $e/tag return $tag
+        let $missing-tags := for $t in map:keys($parents)[.=$current-tags]
+            let $c := map:get($parents, $t)
+            where not($c=$current-tags)
+            let $log := util:log("info", $t || " ask for missing tags "||$c || " : " || ($c=$current-tags))
+            return
+                $c
+        let $missing-tags := distinct-values($missing-tags)
+        where exists($missing-tags)
+        let $record := adsabs:get-records($e/bibcode)
+        let $tags := for $tag in $current-tags return <li><span class="label label-default">{$tag}</span></li>
+        return
+            <div class="panel panel-default">
+                <div class="panel-heading">{adsabs:get-html( $record , 3 )}</div>
+                <div class="panel-body">
+                <ul class="list-inline">{$tags}<br/>add missing tags ? <br/>{$missing-tags}</ul>
+                </div>
+            </div>
+    return
+        $to-fix
 };
 
 declare function app:jmmc-references($node as node(), $model as map(*)) {
@@ -1012,3 +1158,31 @@ return <pre>{$res}</pre>
 (:    return $list:)
 (:return  count($entries//e) = $num_documents:)
 
+
+declare function app:kwic-in-abstracts($node as node(), $model as map(*), $q as xs:string?, $ads-q as xs:string?) {
+    <form>
+    <label>Abstract query:</label><input name="q" value="{$q}"/><br/><label>Abstract query:</label><input name="ads-q" value="{$ads-q}"/><input type="submit"/>
+    </form>
+    ,
+    if($q != '')
+    then
+        let $olbin-bibcodes := app:get-olbin()//bibcode
+        let $ads-query := adsabs:library-query("olbin-refereed")|| " " ||$ads-q
+        let $records := collection("/db")//ads:record[ads:bibcode=$olbin-bibcodes]
+        let $records := if ($ads-q!='') then $records[ads:bibcode=adsabs:search-bibcodes($ads-query)] else $records
+        let $hits:=$records[ft:query(.//ads:abstract, $q)]
+        let $bibcodes := $hits ! adsabs:get-bibcode(.)
+        let $query := "bibcode:(" || string-join($bibcodes, " or ") || ")"
+        return
+        (
+            <p>Found { adsabs:get-query-link($query, count($hits))} records over {adsabs:get-query-link($ads-query, count($records))}</p>,
+            for $hit in $hits
+            let $bibcode := adsabs:get-bibcode($hit)
+            let $tags := for $tag in $olbin-bibcodes[.=$bibcode]/../tag return <li><span class="label label-default">{$tag}</span></li>
+            order by ft:score($hit) descending
+            return
+                ( adsabs:get-html($hit, 3), <br/>,<ul class="list-inline">{$tags}</ul>, kwic:summarize($hit, <config width="250"/>), <br/> )
+        )
+    else
+        ()
+};
