@@ -4,9 +4,14 @@ import module namespace adsabs="http://exist.jmmc.fr/jmmc-resources/adsabs" at "
 declare namespace ads="http://ads.harvard.edu/schema/abs/1.1/abstracts";
 
 let $tags := request:get-parameter("tag", ())
+let $operator := request:get-parameter("operator", "")
+let $operator := " " || $operator || " "
+let $query := request:get-parameter("query", "")
+let $query := if (string-length($query)>2) then "( " || adsabs:library-query("olbin-refereed")|| " and ( title:" || $query || " or author:" || $query ||" or bibcode:" || $query || ") )" else ()
+
 let $qlib := if(exists($tags))
     then
-        for $tag in $tags return adsabs:library-query("tag-olbin "||$tag)
+        for $tag in $tags[string-length(.)>1] return adsabs:library-query("tag-olbin "||$tag)
     else
         adsabs:library-query("olbin-refereed")
 
@@ -16,6 +21,6 @@ let $qtarget := if (exists($targets)) then
         return "object:(" || string-join($t," ") || ")"
     else
         ()
-let $q := string-join(($qlib, $qtarget), " ")
+let $q := string-join(($qlib, $qtarget, $query), $operator)
 return
     response:redirect-to(xs:anyURI($adsabs:SEARCH_ROOT||"q="||encode-for-uri($q)))
