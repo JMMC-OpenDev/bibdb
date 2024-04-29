@@ -1,6 +1,6 @@
 /* Application styles could go here */
 footer .poweredby { float: right; margin: 33px 10px 0 0; padding: 20px;
-    background-color: #efefef; border-radius: 20px; 
+    background-color: #efefef; border-radius: 20px;
 }
 footer .poweredby img { height: 50px; }
 
@@ -14,7 +14,7 @@ footer .poweredby img { height: 50px; }
 .label-badge-right {
     padding: .2em .6em .3em;
     border-radius: .25em;
-    
+
     margin-right: -.8em;
 }
 .label-badge-left {
@@ -31,3 +31,7 @@ footer .poweredby img { height: 50px; }
 /*    border: 20px;*/
 /*    content:"sdlkfjsd";*/
 /*}*/
+
+.hi{
+    background-color: lightgreen;
+}
