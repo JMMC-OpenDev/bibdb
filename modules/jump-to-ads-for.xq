@@ -1,7 +1,7 @@
 xquery version "3.1";
 
 import module namespace adsabs="http://exist.jmmc.fr/jmmc-resources/adsabs" at "/db/apps/jmmc-resources/content/adsabs.xql";
-declare namespace ads="http://ads.harvard.edu/schema/abs/1.1/abstracts";
+declare namespace ads="https://ads.harvard.edu/schema/abs/1.1/abstracts";
 
 let $tags := request:get-parameter("tag", ())
 let $operator := request:get-parameter("operator", "")
