@@ -15,7 +15,7 @@ import module namespace http = "http://expath.org/ns/http-client";
 declare namespace output = "http://www.w3.org/2010/xslt-xquery-serialization";
 declare namespace rest="http://exquery.org/ns/restxq";
 
-declare namespace ads="http://ads.harvard.edu/schema/abs/1.1/abstracts";
+declare namespace ads="https://ads.harvard.edu/schema/abs/1.1/abstracts";
 
 (:declare variable $app:olbin-doc := doc($config:data-root||"/olbin.xml"); replace by app:get-olbin:)
 declare variable $app:jmmc-doc := doc($config:data-root||"/jmmc.xml");
@@ -164,7 +164,7 @@ declare function app:init-data($node as node(), $model as map(*)) {
     let $bibcodes := $xml//bibcode
     (: Why ?   let $retrieve-ads := app:retrieve-ads():)
     let $ads-libraries := adsabs:get-libraries()
-    let $last-ads-mod-date := max($ads-libraries?*?*?date_last_modified)
+    let $last-ads-mod-date := max($ads-libraries?libraries?*?date_last_modified)    
     let $ads-nb-pubs := data(adsabs:get-libraries()?libraries?*[?name=$app:LIST-OLBIN-REFEREED]?num_documents)
 
     (: If count of both list differs we could then synchronize olbin onto ADS and for the new associated tag ones
@@ -445,7 +445,7 @@ declare function app:check-updates($node as node(), $model as map(*)) {
         let $refresh:= session:get-creation-time()
         let $new := adsabs:get-libraries(false()) (: force refresh :)
 (:            let $new := adsabs:get-libraries(true()):)
-        return if( max($new?*?*?date_last_modified) > max($old?*?*?date_last_modified) ) then
+        return if( max($new?libraries?*?date_last_modified) > max($old?libraries?*?date_last_modified) ) then
             ( util:log("info", "update required"), cache:clear($adsabs:expirable-cache-name) (: clear caches... :)
             ,<div class="alert alert-warning fade in">
                     <button type="button" class="close" data-dismiss="alert" aria-hidden="true">×</button>
@@ -619,14 +619,14 @@ declare function app:get-interferometers(){
     let $interferometers :=
     map {
     "CHARA": "CHARA",
-    "COAST": "COAST",
+(:    "COAST": "COAST", add to many result for earthscience :) 
     "GI2T": "GI2T",
     "HYPERTELESCOPES": ("HYPERTELESCOPES","Hypertelescope"),
-    "I2T": "I2T",
+(:    "I2T": "I2T",:)
     "IACT": "Imaging Atmospheric Cherenkov Telescopes",
-    "IOTA": "IOTA",
-    "IRMA": "IRMA",
-   "ISI ": "ISI ",
+(:    "IOTA": "IOTA", indexed because of iota greek :)
+    (: "IRMA": "IRMA", :)
+(:   "ISI ": "ISI ",:)
     "Keck": "Keck  Interferometer",
     "LBTI": "LBTI",
     "Mark III": "Mark III",
@@ -793,7 +793,7 @@ declare function app:search-cats($node as node(), $model as map(*)) {
 declare function app:search-cats-analysis($node as node(), $model as map(*), $skip as xs:string?) {
     let $start-one := util:system-time()
     let $sync-lists := try {if(exists($skip)) then () else app:sync-lists(true())} catch * {()}
-    let $refresh := if(true()) then app:check-updates($node, $model) else ()
+    let $refresh := if(empty($skip)) then app:check-updates($node, $model) else ()
 
     let $start-two := util:system-time()
 
@@ -808,7 +808,9 @@ declare function app:search-cats-analysis($node as node(), $model as map(*), $sk
     let $blocklist-q := "( " || adsabs:library-get-search-expr($app:LIST-OLBIN-BLOCKLIST) || " OR bibstem:(" || string-join($adsabs:filtered-journals, " OR ") || ") )"
 
     let $log := util:log("info","app:search-cats-analysis()/3 prepare base query ")
-    let $base-query := " full:(&quot;interferometer&quot; or &quot;interferometry&quot; or &quot;aperture masking&quot;) NOT fulltext_mtime:[&quot;" || current-dateTime() || "&quot; TO *] property:refereed - " || $olbin-refereed-q || " - " || $blocklist-q ||" - " || $non-interfero-q || " "
+    let $base-query := " year:[2000 TO NOW] -collection:(earthscience)   full:(&quot;interferometer&quot; or &quot;interferometry&quot; or &quot;aperture masking&quot;)fulltext_mtime:[&quot;1000-11-23T14:02:07.762Z&quot; TO *] property:refereed - " || $olbin-refereed-q || " - " || $blocklist-q ||" - " || $non-interfero-q || " "
+(:     NOT fulltext_mtime:[&quot;" || current-dateTime() || "&quot; TO *] entdate:[NOW-90DAYS TO NOW] :)
+ 
 
     let $second-order-queries := map {
         "Sparse Aperture Masking (SAM)" : ("aperture masking")
@@ -850,7 +852,7 @@ declare function app:search-cats-analysis($node as node(), $model as map(*), $sk
 
     let $global-query := $base-query || "(" || string-join(( $groups?*?tag-q, $groups?*?cit-q , $jmmc-tags-query), ") or (") || ")"
     let $global-link := adsabs:get-query-link($global-query , "View this list on ADS in another tab", "sort=bibcode")
-    let $all-new-bibcodes := adsabs:search-bibcodes($global-query)
+    let $all-new-bibcodes := if(exists($skip)) then () else adsabs:search-bibcodes($global-query)
 
     let $bibcodes-by-second-order :=
         map:for-each($second-order-queries, function ($tag, $q){
@@ -885,8 +887,9 @@ declare function app:search-cats-analysis($node as node(), $model as map(*), $sk
     let $records := adsabs:get-records($bibcodes)
 
     let $log := util:log("info","app:search-cats-analysis()/9")
-    let $by-bib-list := for $bibcode in subsequence($bibcodes,1,150) order by $bibcode descending
+    let $by-bib-list := for $bibcode in $bibcodes
         let $record := adsabs:get-records($bibcode)
+        order by adsabs:get-pub-date($record) descending
         let $tags := for $t in map:keys($groups) return if ( $groups($t)?bibcodes[. = $bibcode] ) then $t else ()
         let $second-order-tags := map:for-each($bibcodes-by-second-order, function ($tag, $bibcodes){ if ($bibcodes=$bibcode) then $tag else () })
         let $labels := $tags ! ( <li><span class="label label-{$groups(.)?color}">{data(.)}</span></li> )
@@ -894,18 +897,24 @@ declare function app:search-cats-analysis($node as node(), $model as map(*), $sk
             if ($bibcodes=$bibcode) then <li><span class="label label-primary">{$tag}</span></li> else ()
             })
         let $olbin-add-link := "http://jmmc.fr/bibdb/addPub.php?bibcode=" || encode-for-uri($bibcode) || string-join(("", (for $t in ($tags,$second-order-tags) return "tag[]="||$t )), "&amp;")
+        let $olbin-references-count := adsabs:search-map(map{"rows":0, "q":"references("||$bibcode||") docs(library/DcN09lGIScOZsaNfnim_OQ)"}, false())?response?numFound
         return
             <li>
                {adsabs:get-html($record, 3)}
                 <ul class="list-inline">
                     <li><a target="_blank" href="{$olbin-add-link}">Add article to OLBIN</a>&#160;</li>
-                    { $labels, $second-order-labels }
+                    { $labels, $second-order-labels } ( { if($olbin-references-count=0) then <span class="label label-danger">No reference to OLBIN</span> else $olbin-references-count || " reference(s) part of OLBIN " } )
                 </ul>
             </li>
 
     let $log := util:log("info","app:search-cats-analysis()/10 prepare group list")
-    let $group-list := <ul class="list-inline"> {map:for-each( $groups, function ($key, $value) { <li>
-        { adsabs:get-query-link($value?q, app:badge(<span title="{$value?q}">{$key}</span>,$value("numFound"), $value("color"))) } </li> } ) } </ul>
+    let $group-list := <ul class="list-inline"> {
+        for $key in map:keys( $groups )
+        let $value := map:get($groups,$key)
+        order by $key
+        return  <li>{ adsabs:get-query-link($value?q, app:badge(<span title="{$value?q}">{$key}</span>,$value("numFound"), $value("color"))) } </li>   
+        
+    } </ul>
 
     let $log := util:log("info","app:search-cats-analysis()/11")
     return ( $refresh, $group-list, <h2>{count($by-bib-list)}/{count($bibcodes)} publications to filter and review ({$global-link})</h2>,  <ol>{$by-bib-list}</ol>, <div>Elapsed time :&#160;{jmmc-dateutil:duration($start-one, $start-two, "synchro")}&#160;{jmmc-dateutil:duration($start-two, "query")}  </div> )
@@ -1158,6 +1167,35 @@ return <pre>{$res}</pre>
 (:    return $list:)
 (:return  count($entries//e) = $num_documents:)
 
+declare function app:oidb-table($node as node(), $model as map(*)) {
+    let $olbin := app:get-olbin()
+    let $instrument-tags := $olbin//categories/category[name="Instrument"]/tag
+    let $jmmc-tags := $olbin//categories/category[name="HIDDEN"]/tag
+
+
+    let $bibcodes := $olbin//bibcode/text()
+    let $records := adsabs:get-records($bibcodes, true()) (: global fast preshot :)
+    return 
+    <div>
+    <table class="table table-bordered table-light table-hover datatable">
+        {
+            for $record in subsequence($records,1,1000000)
+                let $bibcode := adsabs:get-bibcode($record)
+                let $title := adsabs:get-title($record)                
+                let $date := adsabs:get-pub-date($record)  
+                let $authors := string-join(adsabs:get-authors($record),";")      
+                let $tags := $olbin//e[bibcode=$bibcode]//tag
+                let $instruments := string-join($tags[.=$instrument-tags],",")
+                let $oidb := "oidb"
+                let $availability := "availability"
+                let $comment := "comment"
+                let $class := if($tags=$jmmc-tags) then "warning" else ""
+                order by $date descending, $bibcode 
+                return <tr><td>{adsabs:get-link($bibcode,())}</td><td class="{$class}">{$title}</td><td>{$authors}</td><td>{$date}</td><td>{$instruments}</td><td>{$oidb}</td><td>{$availability}</td><td>{$comment}</td></tr>
+        }
+    </table>
+    </div>
+};
 
 declare function app:kwic-in-abstracts($node as node(), $model as map(*), $q as xs:string?, $ads-q as xs:string?) {
     <form>
