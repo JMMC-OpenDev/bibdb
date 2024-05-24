@@ -889,7 +889,7 @@ declare function app:search-cats-analysis($node as node(), $model as map(*), $sk
     let $log := util:log("info","app:search-cats-analysis()/9")
     let $by-bib-list := for $bibcode in $bibcodes
         let $record := adsabs:get-records($bibcode)
-        order by adsabs:get-pub-date($record) descending
+        order by $bibcode descending
         let $tags := for $t in map:keys($groups) return if ( $groups($t)?bibcodes[. = $bibcode] ) then $t else ()
         let $second-order-tags := map:for-each($bibcodes-by-second-order, function ($tag, $bibcodes){ if ($bibcodes=$bibcode) then $tag else () })
         let $labels := $tags ! ( <li><span class="label label-{$groups(.)?color}">{data(.)}</span></li> )
