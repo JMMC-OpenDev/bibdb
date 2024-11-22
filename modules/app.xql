@@ -443,17 +443,28 @@ declare function app:check-updates($node as node(), $model as map(*)) {
     if(cache:keys($adsabs:expirable-cache-name)="/biblib/libraries") then
         let $old := adsabs:get-libraries()
         let $refresh:= session:get-creation-time()
+        let $list-to-ignore := ('olbin-candidates', 'olbin-tag-reviewed',"olbin-blocklist")
         let $new := adsabs:get-libraries(false()) (: force refresh :)
-(:            let $new := adsabs:get-libraries(true()):)
-        return if( max($new?libraries?*?date_last_modified) > max($old?libraries?*?date_last_modified) ) then
+        let $new-last-modification := max($new?libraries?*[not(.?name=$list-to-ignore)]?date_last_modified)
+        let $old-last-modification := max($old?libraries?*[not(.?name=$list-to-ignore)]?date_last_modified)
+        let $olbin-last-modification := max(app:get-olbin()//e/subdate/string())
+        let $info := <ul><li>Last ADS change (blocklist ignored) : {$new-last-modification}</li><li>Last OLBIN change : {$olbin-last-modification}</li></ul>
+        return if( $new-last-modification > $old-last-modification or $olbin-last-modification > $new-last-modification ) then
             ( util:log("info", "update required"), cache:clear($adsabs:expirable-cache-name) (: clear caches... :)
             ,<div class="alert alert-warning fade in">
                     <button type="button" class="close" data-dismiss="alert" aria-hidden="true">×</button>
-                    <strong>Sorry for the additional delay!</strong> The lists just have been synchronized with ADS.
+                    <strong>Sorry for the additional delay!</strong> The lists just have been synchronized with ADS.<br/>
+                    {$info}
                 </div>
             )
             else
-                util:log("info", "we seems uptodate")
+                (  util:log("info", "we seem uptodate, ADS:"||$new-last-modification ||"  ,OLBIN:"||$olbin-last-modification),
+                    <div class="alert alert-success fade in">
+                        <button type="button" class="close" data-dismiss="alert" aria-hidden="true">×</button>
+                        The lists do not require to be updated on ADS.<br/>
+                        {$info}
+                    </div>
+                )
         else () (: nothing to do : next call will come later, this avoid 2 calls instead of 1 :)
 };
 
@@ -852,7 +863,9 @@ declare function app:search-cats-analysis($node as node(), $model as map(*), $sk
 
     let $global-query := $base-query || "(" || string-join(( $groups?*?tag-q, $groups?*?cit-q , $jmmc-tags-query), ") or (") || ")"
     let $global-link := adsabs:get-query-link($global-query , "View this list on ADS in another tab", "sort=bibcode")
-    let $all-new-bibcodes := if(exists($skip)) then () else adsabs:search-bibcodes($global-query)
+
+    let $all-new-bibcodes := if(exists($skip)) then () else try{ adsabs:search-bibcodes($global-query) } catch * { util:log("info", "error searching bibcodes for gloabl query") }
+    let $all-new-bibcodes := if(empty($all-new-bibcodes) and exists($skip)) then () else try{ adsabs:search-bibcodes($global-query) } catch * { util:log("info", "error searching bibcodes for gloabl query")  }
 
     let $bibcodes-by-second-order :=
         map:for-each($second-order-queries, function ($tag, $q){
@@ -1062,10 +1075,16 @@ declare function app:check-update($libraries, $list-name, $bibcodes as xs:string
     let $ads-list := $libraries?libraries?*[?name=$list-name]
     let $num_documents := number($ads-list?num_documents)
     let $count := number(count($bibcodes))
-    let $do-update := if( $count = $num_documents ) then false() else true()
+    let $do-update := if( $count = $num_documents ) 
+        then false() (: or $list-name = "olbin-refereed") :)
+        else true()
     return
-        if ( count($bibcodes)=$num_documents )
-        then ()
+        if ( $do-update ) 
+        then
+            (
+(:                util:log("info", string-join(("check-updates for",$list-name, "got", $num_documents, "vs", $count)," " )),:)
+                ()
+            )
 (:        $list-name || " uptodate" :)
         else
             let $log  := util:log("info", string-join(("check-updates for",$list-name, "got", $num_documents, "vs", $count)," " ))
