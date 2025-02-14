@@ -7,9 +7,12 @@ let $tags := request:get-parameter("tag", ())
 let $operator := request:get-parameter("operator", "")
 let $operator := " " || $operator || " "
 let $query := request:get-parameter("query", "")
-let $query := if (string-length($query)>2) then "( " || adsabs:library-query("olbin-refereed")|| " and ( title:" || $query || " or author:" || $query ||" or bibcode:" || $query || ") )" else ()
+(:let $query := "tokenize($query, " "):)
+let $query := "(" || string-join(tokenize(tokenize($query, ","), " ")," or ") || ")"
+(:   :let $query := "(" || string-join( tokenize($query,", \t\n") , " or " ) || "("  :)
+let $query := if (string-length($query)>2) then "( " || adsabs:library-query("olbin-refereed")|| " and ( title:" || $query || " or year:" || $query || " or author:" || $query ||" or bibcode:" || $query || ") )" else ()
 
-let $qlib := if(exists($tags))
+let $qlib := if(exists($tags[string-length(.)>1]))
     then
         for $tag in $tags[string-length(.)>1] return adsabs:library-query("tag-olbin "||$tag)
     else
