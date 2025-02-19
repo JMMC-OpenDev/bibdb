@@ -11,6 +11,15 @@
   <prepare>pre-install.xql</prepare>
   <finish/>
   <changelog>
+    <change xmlns="" version="0.7.0" >
+      <h3>2025-02-19</h3>
+      <ul>
+        <li>Add last submissions.</li>
+        <li>Propose curation lists.</li>
+        <li>Fix bug.</li>
+        <li>Better efficiency.</li>
+      </ul>
+    </change>
     <change xmlns="" version="0.6.0" >
       <h3>2024-04-29</h3>
       <ul>
