@@ -335,13 +335,14 @@ declare function app:olbin-ads-sample-citation-link($node as node(), $model as m
 
 
 declare function app:summary($node as node(), $model as map(*)) {
-    <p>Welcome on the OLBIN  publications management area. <a href="https://publications.olbin.org/">Visit the current portal.</a>
-    <br/> This web area is a <b>*work in progress*</b>.
-    <br/>Main goals are:
+    <p>Welcome on the OLBIN  publications management area. <a href="https://publications.olbin.org/">Visit the end user portal.</a>
+    <br/> This web area is a <b>*work in progress*</b>. Our main goals are to :
     <ul>
         <li>Improve tools to meter publications related to OLBIN and it&apos;s sublists taking advantage of tagging provided by the content tracker (Alain Chelli).</li>
         <li>Keep OLBIN paper list up to date taking advantage of the nice <a href="https://ui.adsabs.harvard.edu">NASA/ADS</a> API.</li>
     </ul>
+    <br/> 📑 You can refer to <a href="https://cloud.univ-grenoble-alpes.fr/s/cwoR2RRsG7xprXD">our reference document about our methodology process.</a>.
+    <br/>
     <br/>{map:get($model,"olbin-nb-pubs")} OLBIN publications (last update on {map:get($model,"date-last-olbin-update")} , last ads list synchronization on {map:get($model,"date-last-ads-update")}).
     <br/>Please contact the <a href="http://www.jmmc.fr/support">jmmc user support</a> for any remark, question or idea. Directions to enter the collaborative mode should come ...
     </p>
@@ -949,25 +950,8 @@ declare function app:search-cats-analysis($node as node(), $model as map(*), $sk
 
 declare function app:get-tag-table($bibcode){
     let $olbin := app:get-olbin()
-    let $categories := data($olbin//category/name)
     let $e := $olbin//e[bibcode=$bibcode]
-    let $e-tags := $e//tag
-    return
-    if(exists($e)) then
-        <table class="table table-bordered">
-        <tr>
-            { for $category in $categories return <th>{$category}</th> }
-        </tr>
-        <tr>
-            {
-                for $category in $categories
-                    let $tags := for $tag in $olbin//category[name=$category]//tag where $tag=$e-tags return (<br/>,<input  type="checkbox" checked="y">{data($tag)}</input>)
-                    return <td>{subsequence($tags,2)}</td>
-            }
-        </tr>
-        </table>
-    else
-        <div>No article with bibcode='{$bibcode}'</div>
+    return app:get-tag-table($bibcode, $e, $olbin)
 };
 
 declare function app:get-tag-table($bibcode, $e, $olbin){
@@ -988,7 +972,7 @@ declare function app:get-tag-table($bibcode, $e, $olbin){
         </tr>
         </table>
     else
-        <div>No article with bibcode='{$bibcode}'</div>
+        <div class="text-warning">No article in OLBIN Database with bibcode='{$bibcode}'</div>
 };
 
 declare function app:get-tag-consistency-map($reasons as xs:string*)  as map(*) {
@@ -999,6 +983,12 @@ declare function app:get-tag-consistency-map($reasons as xs:string*)  as map(*) 
     let $instrument-tags := sort( $olbin//category[name=("Instrument")]//tag )
     let $facility-or-instrument-tags := ($facility-tags,$instrument-tags)
     let $oidb-references := adsabs:library-get-bibcodes($app:LIST-JMMC-OIDB)
+    
+    let $ext-gravity-astro-references := adsabs:search-bibcodes(<q>property:refereed AND {adsabs:library-query("zfzX3gzHSWmP7E2uZ55D8A")}</q>)
+    let $ext-gravity-instru-references := adsabs:search-bibcodes(<q>property:refereed AND {adsabs:library-query("EzuCSNqBT_-mglZwYxZWFg")}</q>)
+    let $ext-chara-references := adsabs:search-bibcodes(<q>property:refereed AND {adsabs:library-query("ZRPlNpgASpm_vIKLGTjmzw")}</q>)
+    
+    
     let $all := empty($reasons)
     let $curated-bibcodes := adsabs:library-get-bibcodes($app:LIST-OLBIN-TAG-CURATED)
     let $entries := $olbin//e[not(bibcode=$curated-bibcodes)]
@@ -1055,6 +1045,22 @@ declare function app:get-tag-consistency-map($reasons as xs:string*)  as map(*) 
             return if ($all or $reason=$reasons) then
             let $bibcodes := for $e in $entries where $e/tag="Stellar diameters" and not ($e/tag="Stellar parameters") return $e/bibcode
             return map:entry($reason,map{"bibcodes" : $bibcodes,"newtags": ("Stellar parameters")}) else ()
+        ,let $reason := 'Missing in GRAVITY library but in OLBIN'
+            return if ($all or $reason=$reasons) then
+                let $bibcodes :=  for $e in $entries[tag="GRAVITY"] where not($e/bibcode=($ext-gravity-astro-references,$ext-gravity-instru-references)) return $e/bibcode
+                return map:entry($reason,map{"label-tags": $hidden-tags,"bibcodes" : $bibcodes}) else ()
+        ,let $reason := 'Missing in OLBIN but in GRAVITY library'
+            return if ($all or $reason=$reasons) then
+                let $bibcodes :=  ($ext-gravity-astro-references,$ext-gravity-instru-references)[not(.=$entries//bibcode)]
+                return map:entry($reason,map{"label-tags": $hidden-tags,"bibcodes" : $bibcodes}) else ()
+        ,let $reason := 'Missing in CHARA library but in OLBIN'
+            return if ($all or $reason=$reasons) then
+                let $bibcodes :=  for $e in $entries[tag="CHARA"] where not($e/bibcode=($ext-gravity-astro-references,$ext-chara-references)) return $e/bibcode
+                return map:entry($reason,map{"label-tags": $hidden-tags,"bibcodes" : $bibcodes}) else ()
+        ,let $reason := 'Missing in OLBIN but in CHARA library'
+            return if ($all or $reason=$reasons) then
+                let $bibcodes :=  ($ext-chara-references)[not(.=$entries//bibcode)]
+                return map:entry($reason,map{"label-tags": $hidden-tags,"bibcodes" : $bibcodes}) else ()
         ))
 
     let $log := util:log("info", string-join($reasons,','))
@@ -1085,6 +1091,31 @@ declare function app:summarize-tag-consistency($node as node(), $model as map(*)
                 <li><b>{$link}</b> : {$count}</li>
     }
     </ul></div>
+};
+
+declare function app:check-tags($node as node(), $model as map(*), $bibcodes as xs:string*) {
+    let $bibcodes := string-join($bibcodes, "&#10;")
+    let $gbibcodes := tokenize($bibcodes, "&#10;")
+    let $all-bibcodes := $bibcodes ! tokenize(., ",|;| |&#10;|\|") ! normalize-space(.)[.] (: split and remove empty values :)
+    let $records := adsabs:get-records($all-bibcodes)
+    return
+        <div>
+            <form method="get"><textarea id="bibcodes" name="bibcodes" rows="{ max((4,min((30,count($gbibcodes)))))+1 }" cols="120">{string-join($bibcodes ! string-join(., ","), '&#10;') }</textarea><input type="submit" value="submit"/></form>
+           <ol>{ for $g in $gbibcodes
+           return <li>{$g}
+            <ul>{
+                for $bibcode in tokenize($g, ",|;| |&#10;|\|") ! normalize-space(.)[.]
+                    let $record := adsabs:get-records($bibcode)
+                    let $olbin-add-link := "http://jmmc.fr/bibdb/updatePubs.php?filter=" || encode-for-uri($bibcode)
+                    let $table := app:get-tag-table($bibcode) 
+                    return 
+                    <li class="pubtags ">{adsabs:get-html($record, 3)}
+                        {$table}
+                        {if ($table//td) then <a class="btn btn-default" target="_blank" href="{$olbin-add-link}">✅ update OLBIN's tags</a> else () }
+                    </li>
+            }</ul></li>
+            }</ol>
+        </div>
 };
 
 declare function app:fix-tag-consistency($node as node(), $model as map(*), $reason as xs:string*) {
@@ -1120,7 +1151,9 @@ declare function app:fix-tag-consistency($node as node(), $model as map(*), $rea
         {
             for $r in map:keys($li)
                 for $map in map:get($li, $r)
-                let $bibcodes := $map?bibcodes
+                    let $bibcodes := $map?bibcodes
+                    let $toads := adsabs:get-query-link("bibcode:(" || string-join($bibcodes, " or ") || ")"
+,"view on ADS")
                     let $tags := $map?tags
                     let $newtags := $map?newtags
                     let $label-tags := $map?label-tags
@@ -1141,7 +1174,7 @@ declare function app:fix-tag-consistency($node as node(), $model as map(*), $rea
                                 </li>
                         , (<li><b>list truncted : {count($bibcodes)} to review</b></li>)[count($bibcodes)>$max]
                     )
-                    return (<div><h2>{$r} ({count($bibcodes)})</h2><ol>{$li} </ol></div>)
+                    return (<div><h2>{$r} ({count($bibcodes)}  -  {$toads} )</h2><ol>{$li} </ol></div>)
         }
         {$script}
     </div>
@@ -1304,7 +1337,9 @@ declare function app:check-update($libraries, $list-name, $bibcodes as xs:string
             let $ads-bibcodes:= data(adsabs:search("docs(library/"||$id||")", "bibcode")?response?docs?*?bibcode)
             let $missings := $bibcodes[not(.=$ads-bibcodes)]
             let $outdated := $ads-bibcodes[not(.=$bibcodes)]
-            let $update-a := if(true() and exists($missings)) then adsabs:library-add($id, $missings) else ()
+            (: next two line try to avoid error when we give a wrong bibcode (arxiv may fail):)
+            let $update-a := if(exists($missings)) then try{ let $do := adsabs:library-add($id, $missings) return () } catch * { "Can't add bibcode" } else ()
+            let $update-a := if(exists($update-a)) then "-" else  ""
             let $update-r := if(exists($outdated)) then adsabs:library-remove($id, $outdated) else ()
             (: todo after insert in olbin-refereed : remove all new ones from olbin-missings :)
             return
@@ -1314,7 +1349,6 @@ declare function app:check-update($libraries, $list-name, $bibcodes as xs:string
                 util:log("info", "nothing to do !"),
                 ()
             )
-(:        $list-name || " uptodate" :)
 };
 
 declare function app:sync-lists(){
