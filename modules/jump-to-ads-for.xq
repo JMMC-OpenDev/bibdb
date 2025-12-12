@@ -19,16 +19,19 @@ let $qlib := if(exists($tags[string-length(.)>1]))
     else
         ()
 
-let $targets := request:get-parameter("target", ())
-let $qtarget := if (exists($targets)) then
-        let $t  := for $t in $targets return for $e in tokenize($t, ",") return "&quot;"|| normalize-space($e) ||"&quot;"
-        return "object:(" || string-join($t," ") || ")"
-    else
-        ()
 
 let $libraries := request:get-parameter("library", ())
 let $qlibrary := if (exists($libraries[string-length(.)>1])) then
         for $library in $libraries return adsabs:library-query($library)
+    else
+        ()
+let $targets := request:get-parameter("target", ())
+let $qtarget := if (exists($targets)) then
+        let $t  := for $t in $targets return for $e in tokenize($t, ",") return "&quot;"|| normalize-space($e) ||"&quot;"
+        let $qt := "object:(" || string-join($t," ") || ")"
+        let $q := string-join(($qlib, $query, $qlibrary), $operator)
+        return 
+            if(exists($q[string-length(.)>1])) then $qt else string-join(($qt,adsabs:library-query("olbin-refereed")), $operator)
     else
         ()
 
