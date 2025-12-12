@@ -11,6 +11,12 @@
   <prepare>pre-install.xql</prepare>
   <finish/>
   <changelog>
+    <change xmlns="" version="0.8.0" >
+      <h3>2025-12-12</h3>
+      <ul>
+        <li>Add new curation check for stellar diameters flag (against JMDC content), VLTI tag against telbib content.</li>
+      </ul>
+    </change>
     <change xmlns="" version="0.7.0" >
       <h3>2025-02-19</h3>
       <ul>

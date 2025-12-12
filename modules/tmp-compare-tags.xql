@@ -6,7 +6,7 @@ declare namespace ads="https://ads.harvard.edu/schema/abs/1.1/abstracts";
 
 
 let $bibdb-entries :=  app:get-olbin()//e
-let $bibdb-entries :=  subsequence(app:get-olbin()//e,5,5)
+let $bibdb-entries :=  subsequence(app:get-olbin()//e,5,10)
 (: prefetch every records in a single call :)
 let $cache-records := adsabs:get-records($bibdb-entries//bibcode)
 let $astro-topic := app:get-olbin()//category[name="Astrophysical topic"]//tag
