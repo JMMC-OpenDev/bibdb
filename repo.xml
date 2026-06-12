@@ -14,7 +14,8 @@
     <change xmlns="" version="0.8.1" >
       <h3>2026-06-12</h3>
       <ul>
-        <li>Help a better collaborative curation, adding support to add comments.</li>
+        <li>Help a better collaborative curation, adding support to add comments (new admin menu entry).</li>
+        <li>Check bibcodes for a given library (new menu entry).</li>
       </ul>
     </change>
     <change xmlns="" version="0.8.0" >

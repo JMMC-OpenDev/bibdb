@@ -1633,3 +1633,85 @@ declare function app:show-next-links($node as node(), $model as map(*)){
         else
             ()
 };
+
+declare function app:get-bibcodes($node as node(), $model as map(*), $library as xs:string?, $user-bibcodes as xs:string?){
+
+    let $lib-bibcodes := if(exists($library)) then reverse(sort(adsabs:library-get-bibcodes($library))) else ()
+    let $user-bibcodes := if(data($user-bibcodes)) then
+            let $bibcodes := translate($user-bibcodes, "&quot;&apos;","")
+            let $bibcodes := tokenize($bibcodes, ",")
+            let $bibcodes := for $b in $bibcodes return tokenize($b, ";")
+            let $bibcodes := for $b in $bibcodes return tokenize($b, "&#10;")
+            let $bibcodes := for $b in $bibcodes return normalize-space($b)
+            let $bibcodes := reverse(sort($bibcodes[data(.)]))
+            return $bibcodes
+            else ()
+
+    return (
+
+    if (exists($user-bibcodes) and exists($library)) then
+    <div>
+        {
+            <table class="table">
+                <tr>
+                    <th>in both lists:</th>
+                    <th>only in your list</th>
+                    <th>only in the library</th>
+                </tr>
+                <tr>
+                    <td><pre>{string-join($user-bibcodes[.=$lib-bibcodes], "&#10;")}</pre></td>
+                    <td><pre>{string-join($user-bibcodes[not(.=$lib-bibcodes)], "&#10;")}</pre></td>
+                    <td><pre>{string-join($lib-bibcodes[not(.=$user-bibcodes)], "&#10;")}</pre></td>
+                </tr>
+            </table>
+        }
+    </div>
+    else ()
+    ,
+    if (exists($library)) then
+    <div>
+        {
+            let $bibcodes := reverse(sort(adsabs:library-get-bibcodes($library)))
+            return
+            <div>
+                <h5>Bibcodes of '{$library}' list</h5>
+                <pre>
+                {string-join($bibcodes, "&#10;")}
+                </pre>
+            </div>
+        }
+    </div>
+    else (),
+    if( empty($library) or true() ) then
+    <div>
+        Choose the library you want to get bibcodes for:
+        <form>
+            <select name="library">
+            {
+                let $public-libs := adsabs:get-libraries()?libraries?*[?public=true()]
+
+                for $glib in $public-libs group by $prefix := tokenize($glib?name, "-")[1]
+                order by $prefix ascending
+                return
+                    <optgroup label="{$prefix}">
+                    {
+                        for $lib in $glib
+                        let $name := $lib?name
+                        order by $name
+                        return
+                         element {"option"} { if($name=$library) then attribute {"selected"} {"true"} else (), attribute {"value"} {$name}, $name||" ("||$lib?num_documents||")"}
+                    }
+                    </optgroup>
+
+            }
+            </select>
+            <input type="submit"/>
+            <br/>
+            Optional bibcodes list to check against selected list:
+            <textarea class="form-control" rows="5" name="user-bibcodes">{string-join($user-bibcodes, "&#10;")}</textarea>
+
+        </form>
+        </div>
+        else ()
+    )
+};
