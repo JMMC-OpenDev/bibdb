@@ -8,12 +8,13 @@ xquery version "3.1";
 import module namespace templates="http://exist-db.org/xquery/html-templating";
 import module namespace lib="http://exist-db.org/xquery/html-templating/lib";
 
-(: 
- : The following modules provide functions which will be called by the 
+(:
+ : The following modules provide functions which will be called by the
  : templating.
  :)
 import module namespace config="http://olbin.org/exist/bibdb/config" at "config.xqm";
 import module namespace app="http://olbin.org/exist/bibdb/templates" at "app.xql";
+import module namespace comments="http://olbin.org/exist/bibdb/comments" at "comments.xq";
 import module namespace jmmc-auth="http://exist.jmmc.fr/jmmc-resources/auth";
 
 

@@ -4,6 +4,7 @@ module namespace app="http://olbin.org/exist/bibdb/templates";
 
 import module namespace templates="http://exist-db.org/xquery/templates" ;
 import module namespace config="http://olbin.org/exist/bibdb/config" at "config.xqm";
+import module namespace comments="http://olbin.org/exist/bibdb/comments" at "comments.xq";
 import module namespace adsabs="http://exist.jmmc.fr/jmmc-resources/adsabs" at "/db/apps/jmmc-resources/content/adsabs.xql";
 import module namespace jmmc-auth="http://exist.jmmc.fr/jmmc-resources/auth";
 import module namespace jmmc-dateutil="http://exist.jmmc.fr/jmmc-resources/dateutil" at "/db/apps/jmmc-resources/content/jmmc-dateutil.xql";
@@ -543,7 +544,6 @@ declare function app:jmmc-references($node as node(), $model as map(*)) {
 
     let $missing-in-groups := for $record in adsabs:get-records($jmmc-papers-bibcodes[not(.=$jmmc-groups-bibcodes)]) return <li>&lt;!--{adsabs:get-title($record)}--&gt;<br/>{ serialize(<bibcode>{adsabs:get-bibcode($record)}</bibcode>)} </li>
     let $missing-in-groups := if($missing-in-groups) then <div><h4>ADS jmmc-papers not present in local db</h4><ul> {$missing-in-groups}</ul></div> else ()
-(:        <div><h4>ADS jmmc-papers present in local db</h4></div>:)
 
 
     (: The the big query behind:)
@@ -931,6 +931,7 @@ declare function app:search-cats-analysis($node as node(), $model as map(*), $sk
                 <ul class="list-inline">
                     <li><a target="_blank" href="{$olbin-add-link}">Add article to OLBIN</a>&#160;</li>
                     { $labels, $second-order-labels } ( { if($olbin-references-count=0) then <span class="label label-danger">No reference to OLBIN</span> else if($olbin-references-count<0) then <span class="label label-danger">Error getting number or references</span> else $olbin-references-count || " reference(s) part of OLBIN " } )
+                    &#160;-&#160; {comments:button($bibcode)}
                 </ul>
             </li>
 
@@ -999,12 +1000,6 @@ declare function app:get-tag-consistency-map($reasons as xs:string*)  as map(*) 
             return if ($all or $reason=$reasons) then
                 let $bibcodes := for $e in $entries[tag=$hidden-tags] where not($e/tag[.="JMMC"]) return $e/bibcode
                 return map:entry($reason,map{"label-tags": $hidden-tags,"bibcodes" : $bibcodes,"newtags": ("JMMC")}) else ()
-        ,let $reason := 'Missing Stellar diameters tag'
-            return if ($all or $reason=$reasons) then
-                let $jmdc-references := adsabs:library-get-bibcodes("jmdc-csv")
-                let $olbin-jmdc-references := $jmdc-references[.=$olbin//bibcode]
-                let $bibcodes := for $b in $olbin-jmdc-references where not($entries[bibcode=$b and tag="Stellar diameters"]) return $b
-                return map:entry($reason,map{"label-tags": "Stellar diameters","bibcodes" : $bibcodes,"newtags": ("Stellar diameters")}) else ()
         ,let $reason := 'Missing OiDB Data'
             return if ($all or $reason=$reasons) then
                 let $bibcodes :=  for $e in $entries[tag="oidb"] where not($e/bibcode=$oidb-references) return $e/bibcode
@@ -1109,7 +1104,7 @@ declare function app:summarize-tag-consistency($node as node(), $model as map(*)
 };
 
 declare function app:check-publications($node as node(), $model as map(*), $queries as xs:string*) {
-    let $subqueries := tokenize($queries, "&#10;")
+    let $subqueries := tokenize($queries, "&#10;")[string-length(.)>0]
     let $jmmc-groups := $app:jmmc-doc//group[@tag]
     return
         <div>
@@ -1124,7 +1119,7 @@ declare function app:check-publications($node as node(), $model as map(*), $quer
                 let $q := string-join($group/bibcode , " or ")
                 let $q := if($q) then "( citations(identifier:("||$q||")) )" else ()
                 let $query := $query || " AND (" || $q || ")"
-                let $res := if($q) then adsabs:search-bibcodes($query) else ()
+                let $res := if($q) then try{ adsabs:search-bibcodes($query) } catch * { () } else ()
                 return <li>{adsabs:get-query-link($query, count($res)|| " - " ||$tag)}</li>
 
                 (:
@@ -1552,12 +1547,15 @@ declare function app:search-bibcodes($node as node(), $model as map(*), $bibcode
     ,
     if(exists($bibcodes-q) and $bibcodes-q != '')
     then
+        let $ads-query := adsabs:library-query($app:LIST-OLBIN-REFEREED)|| " " ||$bibcodes-q
+        let $ads-bibcodes := adsabs:search-bibcodes($ads-query)
+
         let $external-db := map{
             "oidb": adsabs:library-get-bibcodes($app:LIST-JMMC-OIDB)
             ,"jmdc": adsabs:library-get-bibcodes("jmdc-csv")
         }
         let $olbin := app:get-olbin()
-        let $bibcodes := for $e in $olbin//e[tokenize($bibcodes-q)=bibcode]
+        let $bibcodes := for $e in $olbin//e[$ads-bibcodes=bibcode]
             order by $e/subdate descending return $e/bibcode/text()
         let $records := adsabs:get-records($bibcodes) (: global fast preshot :)
         return
@@ -1598,21 +1596,23 @@ return
 
 declare function app:kwic-in-abstracts($node as node(), $model as map(*), $q as xs:string?, $ads-q as xs:string?) {
     <form>
-    <label>Abstract query:</label><input name="q" value="{$q}"/><br/><label>Abstract query:</label><input name="ads-q" value="{$ads-q}"/><input type="submit"/>
+    <label>Abstract query:</label><input name="q" value="{$q}"/><br/><label>Ads query:</label><input name="ads-q" value="{$ads-q}"/><input type="submit"/>
     </form>
     ,
     if($q != '')
     then
         let $olbin-bibcodes := app:get-olbin()//bibcode
         let $ads-query := adsabs:library-query($app:LIST-OLBIN-REFEREED)|| " " ||$ads-q
+        let $check-records := adsabs:get-records($olbin-bibcodes)
         let $records := collection("/db")//ads:record[ads:bibcode=$olbin-bibcodes]
         let $records := if ($ads-q!='') then $records[ads:bibcode=adsabs:search-bibcodes($ads-query)] else $records
         let $hits:=$records[ft:query(.//ads:abstract, $q)]
+        let $hits:=$records[contains(.//ads:abstract, $q)]
         let $bibcodes := $hits ! adsabs:get-bibcode(.)
         let $query := "bibcode:(" || string-join($bibcodes, " or ") || ")"
         return
         (
-            <p>Found { adsabs:get-query-link($query, count($hits))} records over {adsabs:get-query-link($ads-query, count($records))}</p>,
+            <p>Found { adsabs:get-query-link($query, count($hits))} records over {adsabs:get-query-link($ads-query || " abs:&quot;" || $q || "&quot;", count($records))}</p>,
             for $hit in $hits
             let $bibcode := adsabs:get-bibcode($hit)
             let $tags := for $tag in $olbin-bibcodes[.=$bibcode]/../tag return <li><span class="label label-default">{$tag}</span></li>
@@ -1622,4 +1622,14 @@ declare function app:kwic-in-abstracts($node as node(), $model as map(*), $q as 
         )
     else
         ()
+};
+
+declare function app:show-next-links($node as node(), $model as map(*)){
+   (: limited to a single one at present time, but it is nice :)
+   let $next-link := session:get-attribute("next-link")
+   return if (exists($next-link) and jmmc-auth:is-logged())
+        then
+            $next-link
+        else
+            ()
 };
