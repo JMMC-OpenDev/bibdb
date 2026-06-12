@@ -1215,9 +1215,10 @@ declare function app:fix-tag-consistency($node as node(), $model as map(*), $rea
                                 <li class="pubtags ">{adsabs:get-html($record, 3)}
                                     { app:get-tag-table($bibcode) }
                                     <a class="btn btn-default" target="_blank" href="{$olbin-add-link}">✅ update OLBIN's tags</a>&#160;
-                                    <button id="{$bibcode}" data-list="{$app:LIST-OLBIN-TAG-CURATED}" class="flagtag btn btn-default">🔕 Ignore / do not check anymore</button>
+                                    <button id="{$bibcode}" data-list="{$app:LIST-OLBIN-TAG-CURATED}" class="flagtag btn btn-default">🔕 Ignore / do not check anymore</button>&#160;
+                                    {comments:button($bibcode)}
                                 </li>
-                        , (<li><b>list truncted : {count($bibcodes)} to review</b></li>)[count($bibcodes)>$max]
+                        , (<li><b>list truncated : {count($bibcodes)} to review</b></li>)[count($bibcodes)>$max]
                     )
                     return (<div><h2>{$r} ({count($bibcodes)}  -  {$toads} )</h2><ol>{$li} </ol></div>)
         }

@@ -13,7 +13,7 @@ declare variable $comments:level-map := map{"info":"info","debug":"info","warnin
 
 declare function comments:button($bibcode){
   let $comments :=comments:get-comments($bibcode)
-  let $button := if( exists($comments) or not(starts-with($bibcode, "2026")))
+  let $button := if( exists($comments) )
   then
     <a class="btn btn-primary" href="comments.html?bibcode={$bibcode}">
         <span class="badge">{count($comments)}</span> View comments <span class="glyphicon glyphicon-search" aria-hidden="true"></span>
