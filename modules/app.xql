@@ -985,15 +985,14 @@ declare function app:get-tag-consistency-map($reasons as xs:string*)  as map(*) 
     let $facility-or-instrument-tags := ($facility-tags,$instrument-tags)
     let $oidb-references := adsabs:library-get-bibcodes($app:LIST-JMMC-OIDB)
 
-
-    let $ext-gravity-astro-references := adsabs:search-bibcodes(<q>property:refereed AND {adsabs:library-query("zfzX3gzHSWmP7E2uZ55D8A")}</q>)
-    let $ext-gravity-instru-references := adsabs:search-bibcodes(<q>property:refereed AND {adsabs:library-query("EzuCSNqBT_-mglZwYxZWFg")}</q>)
-    let $ext-chara-references := adsabs:search-bibcodes(<q>property:refereed AND {adsabs:library-query("ZRPlNpgASpm_vIKLGTjmzw")}</q>)
-    let $ext-telbib-vlti-references :=  adsabs:search-bibcodes(<q>property:refereed AND {adsabs:library-query("telbib-vlti")}</q>)
-
     let $all := empty($reasons)
     let $curated-bibcodes := adsabs:library-get-bibcodes($app:LIST-OLBIN-TAG-CURATED)
     let $entries := $olbin//e[not(bibcode=$curated-bibcodes)]
+
+    let $ext-gravity-astro-references := adsabs:search-bibcodes(<q>property:refereed AND {adsabs:library-query("zfzX3gzHSWmP7E2uZ55D8A")}</q>)[not(.=$curated-bibcodes)]
+    let $ext-gravity-instru-references := adsabs:search-bibcodes(<q>property:refereed AND {adsabs:library-query("EzuCSNqBT_-mglZwYxZWFg")}</q>)[not(.=$curated-bibcodes)]
+    let $ext-chara-references := adsabs:search-bibcodes(<q>property:refereed AND {adsabs:library-query("ZRPlNpgASpm_vIKLGTjmzw")}</q>)[not(.=$curated-bibcodes)]
+    let $ext-telbib-vlti-references :=  adsabs:search-bibcodes(<q>property:refereed AND {adsabs:library-query("telbib-vlti")}</q>)[not(.=$curated-bibcodes)]
 
     let $li := map:merge((
         let $reason := 'Missing JMMC tag'
