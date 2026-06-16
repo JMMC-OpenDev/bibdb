@@ -1459,7 +1459,9 @@ let $res := ($res,
     else adsabs:create-library($app:LIST-OLBIN-TAG-CURATED, "List papers which must be flagged and not be curated anymore.", true(), () )
 )
 
-let $telbibcodes := doc($app:telbib-vlti-url)//bibcode
+let $doc_one := doc($app:telbib-vlti-url)
+let $pages := xs:integer(ceiling( xs:integer($doc_one//numFound) div 500 ))
+let $telbibcodes := ( $doc_one//bibcode,  for $page in 1 to $pages return doc($app:telbib-vlti-url || "&amp;start="||500*$page)//bibcode )
 let $res := ($res, if($existing-lib-names='telbib-vlti') then () else adsabs:create-library("telbib-vlti", "ESO telbib papers associated to VLTI instruments (automatically synchronized)", true(), () ) )
 let $res := ($res , app:check-update($fresh-libraries, "telbib-vlti", $telbibcodes, false()))
 
