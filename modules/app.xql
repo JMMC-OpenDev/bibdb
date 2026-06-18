@@ -1064,7 +1064,7 @@ declare function app:get-tag-consistency-map($reasons as xs:string*)  as map(*) 
                 return map:entry($reason,map{"label-tags": $hidden-tags,"bibcodes" : $bibcodes}) else ()
         ,let $reason := 'Missing in telbib VLTI library but in OLBIN'
             return if ($all or $reason=$reasons) then
-                let $bibcodes :=  for $e in $entries[tag="VLTI"] where not($e/bibcode=($ext-telbib-vlti-references)) return $e/bibcode
+                let $bibcodes :=  for $e in $entries[tag="VLTI" and tag="Astrophysical results"] where not($e/bibcode=($ext-telbib-vlti-references)) return $e/bibcode
                 return map:entry($reason,map{"label-tags": $hidden-tags,"bibcodes" : $bibcodes}) else ()
         ,let $reason := 'Missing in OLBIN but in telbib VLTI library'
             return if ($all or $reason=$reasons) then
