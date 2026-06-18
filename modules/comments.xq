@@ -15,11 +15,11 @@ declare function comments:button($bibcode){
   let $comments :=comments:get-comments($bibcode)
   let $button := if( exists($comments) )
   then
-    <a class="btn btn-primary" href="comments.html?bibcode={$bibcode}" target="_blank">
+    <a class="btn btn-primary" href="comments.html?bibcode={encode-for-uri($bibcode)}" target="_blank">
         <span class="badge">{count($comments)}</span> View comments <span class="glyphicon glyphicon-search" aria-hidden="true"></span>
     </a>
   else
-    <a class="btn btn-default" href="comments.html?bibcode={$bibcode}" target="_blank">
+    <a class="btn btn-default" href="comments.html?bibcode={encode-for-uri($bibcode)}" target="_blank">
         Add comment <span class="glyphicon glyphicon-plus" aria-hidden="true"></span>
     </a>
     return
