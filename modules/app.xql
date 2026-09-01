@@ -49,112 +49,6 @@ declare variable $app:expirable-cache := cache:create($app:expirable-cache-name,
 declare variable $app:telbib-vlti-url := "https://telbib.eso.org/api.php?telescope[]=vlti+visitor&amp;telescope[]=vlti";
 
 
-
-declare function app:sync-lists(){
-    app:sync-lists(false())
-};
-
-declare function app:sync-lists($node as node(), $model as map(*)){
-        app:sync-lists(false())
-};
-
-declare function app:sync-lists($force-clear){
-let $clear-olbin := cache:remove($app:expirable-cache-name, "olbin-xml")
-
-let $force-clear := if($force-clear)
-    then
-        (
-        cache:clear($adsabs:expirable-cache-name),
-        util:log("info", "Clear adsabs cache")
-        )
-    else ()
-
-let $entries :=  app:get-olbin()//e
-let $bibcodes := $entries//bibcode
-let $fresh-libraries := adsabs:get-libraries(false())
-let $existing-lib-names := data($fresh-libraries?libraries?*?name)
-
-let $res := () (: stack results :)
-
-let $main-updates := app:check-update($fresh-libraries, $app:LIST-OLBIN-REFEREED, $bibcodes, false())
-
-let $res := ($res , $main-updates)
-
-(: Perform lazy creation :)
-let $res := ($res,
-    for $tag in app:get-olbin()//publications/tag[ not( . = ("Narrabri Stellar Intensity Interferometer") ) ]
-    let $bibcodes := $entries[tag=$tag]/bibcode
-    let $name := "tag-olbin "||$tag
-    where not($name=$existing-lib-names)
-    let $create-lib := try {
-        let $update := adsabs:create-library($name, "Olbin papers tagged "||$tag, true(), data($bibcodes))
-(:        let $a := 1:)
-  (: tag is probably too long :)
-        return ()
-    } catch * {
-        $tag
-    }
-  return data($name)||":"||count($bibcodes) || " ret"||$create-lib
-(:    , adsabs:create-library("olbin-missing-pubs", "Missing Olbin papers to be added in the main db", true(), () ):)
-)
-
-let $res := ($res,
-    if($existing-lib-names='olbin-blocklist') then () else
-    let $bbs := $app:blocklist-doc//bibcode
-    (:return count($bbs):)
-    return adsabs:create-library("olbin-blocklist", "Excluded papers sorted out from main Olbin list (reasons should be provided on bibdbmgr website). Helps to curate main lists.", true(), $bbs )
-)
-
-let $res := ($res,
-    if($existing-lib-names=$app:LIST-OLBIN-CANDIDATES)
-    then ()
-    else adsabs:create-library($app:LIST-OLBIN-CANDIDATES, "Candidates (auto generated) papers sorted out from main Olbin list (reasons should be provided on bibdbmgr website). Helps to find new candidates.", true(), () )
-)
-let $res := ($res,
-    if($existing-lib-names=$app:LIST-OLBIN-TAG-CURATED)
-    then ()
-    else adsabs:create-library($app:LIST-OLBIN-TAG-CURATED, "List papers which must be flagged and not be curated anymore.", true(), () )
-)
-
-let $doc_one := doc($app:telbib-vlti-url)
-let $pages := xs:integer(ceiling( xs:integer($doc_one//numFound) div 500 ))
-let $telbibcodes := ( $doc_one//bibcode,  for $page in 1 to $pages return doc($app:telbib-vlti-url || "&amp;start="||500*$page)//bibcode )
-let $res := ($res, if($existing-lib-names='telbib-vlti') then () else adsabs:create-library("telbib-vlti", "ESO telbib papers associated to VLTI instruments (automatically synchronized)", true(), () ) )
-let $res := ($res , app:check-update($fresh-libraries, "telbib-vlti", $telbibcodes, false()))
-
-let $oidb-bibcodes := jmmc-tap:tap-adql-query("http://tap.jmmc.fr/vollt/tap/sync", "SELECT DISTINCT bib_reference from oidb",())//*:TD/text()
-let $res := ($res, if($existing-lib-names=$app:LIST-JMMC-OIDB) then () else adsabs:create-library($app:LIST-JMMC-OIDB,  "List of papers associated to published data in OiDB (automatically synchronized)", true(), () ) )
-let $res := ($res , app:check-update($fresh-libraries, $app:LIST-JMMC-OIDB, $oidb-bibcodes, false()))
-
-
-let $res := ( $res, for $tag in app:get-olbin()/publications/tag
-        let $bibcodes := $entries[tag=$tag]/bibcode
-        let $list-name := "tag-olbin "||$tag
-        where $list-name = $existing-lib-names
-        return app:check-update($fresh-libraries, $list-name, $bibcodes, false())
-    )
-
-(:  next lines could be skipped if not changes occur previously :)
-let $clear-libraries := cache:remove($adsabs:expirable-cache-name, "/biblib/libraries")
-let $ask-again := adsabs:get-libraries()
-
-return
-    if ( empty($res) ) then
-        let $last-updated := for $lib in adsabs:get-libraries()?libraries?*
-        order by $lib?date_last_modified descending
-            return <li>{$lib?name} : last mod <b>{$lib?date_last_modified}</b>, number of doc <b>{$lib?num_documents}</b> </li>
-        return
-        <div class="alert alert-success" role="alert">Lists up to date !<br/><ol>{subsequence($last-updated, 1, 5)}</ol></div>
-    else
-        <div class="alert alert-info" role="alert"><ul>{for $r in $res return <li>{$r}</li>}</ul></div>
-};
-
-(:return adsabs:get-libraries()?libraries?*[?name='olbin-refereed']:)
-(:for $list in $existing-lib-names:)
-(:    return $list:)
-(:return  count($entries//e) = $num_documents:)
-
-
 declare function app:plots($node as node(), $model as map(*)){
 <script src='https://cdn.plot.ly/plotly-2.26.0.min.js'></script>,
 <div id="myDiv"/>,
@@ -1100,6 +994,7 @@ declare function app:get-tag-consistency-map($reasons as xs:string*)  as map(*) 
     let $ext-chara-references := adsabs:search-bibcodes(<q>property:refereed AND {adsabs:library-query("ZRPlNpgASpm_vIKLGTjmzw")}</q>)[not(.=$curated-bibcodes)]
     let $ext-telbib-vlti-references :=  adsabs:search-bibcodes(<q>property:refereed AND {adsabs:library-query("telbib-vlti")}</q>)[not(.=$curated-bibcodes)]
 
+
     let $li := map:merge((
         let $reason := 'Missing JMMC tag'
             return if ($all or $reason=$reasons) then
@@ -1352,19 +1247,6 @@ declare function app:add-to-library($node as node(), $model as map(*), $list as 
     app:do-add-to-library($list, $bibcodes)
 };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 declare function app:check-tags-analysis($node as node(), $model as map(*)) {
 
     let $log := util:log("info","app:check-tags-analysis()/1")
@@ -1508,15 +1390,113 @@ declare function app:check-update($libraries, $list-name, $bibcodes as xs:string
             let $update-r := if(exists($outdated)) then adsabs:library-remove($id, $outdated) else ()
             (: todo after insert in olbin-refereed : remove all new ones from olbin-missings :)
             return
-            ($update-a, $update-r,
-             $list-name || " was synchronized (olbin db:" || count($bibcodes) || ", ads:" ||  $num_documents|| ") : "
-             || string-join( ("missing are "|| string-join($missings, " OR "))[$missings] || (" outdated are "|| string-join($outdated, " OR "))[$outdated] ) , ", ")
+            ($update-a, $update-r,$list-name || " need sync (olbin db:" || count($bibcodes) || ", ads:" ||  $num_documents|| ") : missing are "|| string-join($missings, " OR ") || ", outdated are "|| string-join($outdated, " OR ") )
         else
             (
-                (: util:log("info", "nothing to do !"), :)
+                util:log("info", "nothing to do !"),
                 ()
             )
 };
+
+declare function app:sync-lists(){
+    app:sync-lists(false())
+};
+
+declare function app:sync-lists($force-clear){
+let $clear-olbin := cache:remove($app:expirable-cache-name, "olbin-xml")
+
+let $force-clear := if($force-clear)
+    then
+        (
+        cache:clear($adsabs:expirable-cache-name),
+        util:log("info", "Clear adsabs cache")
+        )
+    else ()
+
+let $entries :=  app:get-olbin()//e
+let $bibcodes := $entries//bibcode
+let $fresh-libraries := adsabs:get-libraries(false())
+let $existing-lib-names := data($fresh-libraries?libraries?*?name)
+
+let $res := () (: stack results :)
+
+let $main-updates := app:check-update($fresh-libraries, $app:LIST-OLBIN-REFEREED, $bibcodes, false())
+
+let $res := ($res , $main-updates)
+
+(: Perform lazy creation :)
+let $res := ($res,
+    for $tag in app:get-olbin()//publications/tag[ not( . = ("Narrabri Stellar Intensity Interferometer") ) ]
+    let $bibcodes := $entries[tag=$tag]/bibcode
+    let $name := "tag-olbin "||$tag
+    where not($name=$existing-lib-names)
+    let $create-lib := try {
+        let $update := adsabs:create-library($name, "Olbin papers tagged "||$tag, true(), data($bibcodes))
+(:        let $a := 1:)
+  (: tag is probably too long :)
+        return ()
+    } catch * {
+        $tag
+    }
+  return data($name)||":"||count($bibcodes) || " ret"||$create-lib
+(:    , adsabs:create-library("olbin-missing-pubs", "Missing Olbin papers to be added in the main db", true(), () ):)
+)
+
+let $res := ($res,
+    if($existing-lib-names='olbin-blocklist') then () else
+    let $bbs := $app:blocklist-doc//bibcode
+    (:return count($bbs):)
+    return adsabs:create-library("olbin-blocklist", "Excluded papers sorted out from main Olbin list (reasons should be provided on bibdbmgr website). Helps to curate main lists.", true(), $bbs )
+)
+
+let $res := ($res,
+    if($existing-lib-names=$app:LIST-OLBIN-CANDIDATES)
+    then ()
+    else adsabs:create-library($app:LIST-OLBIN-CANDIDATES, "Candidates (auto generated) papers sorted out from main Olbin list (reasons should be provided on bibdbmgr website). Helps to find new candidates.", true(), () )
+)
+let $res := ($res,
+    if($existing-lib-names=$app:LIST-OLBIN-TAG-CURATED)
+    then ()
+    else adsabs:create-library($app:LIST-OLBIN-TAG-CURATED, "List papers which must be flagged and not be curated anymore.", true(), () )
+)
+
+let $telbib_res := try{
+    let $doc_one :=  doc($app:telbib-vlti-url)
+    let $pages := xs:integer(ceiling( xs:integer($doc_one//numFound) div 500 ))
+    let $telbibcodes := ( $doc_one//bibcode,  for $page in 1 to $pages return doc($app:telbib-vlti-url || "&amp;start="||500*$page)//bibcode )
+    return (
+        if($existing-lib-names='telbib-vlti') then () else adsabs:create-library("telbib-vlti", "ESO telbib papers associated to VLTI instruments (automatically synchronized)", true(), () )
+        ,app:check-update($fresh-libraries, "telbib-vlti", $telbibcodes, false())
+    )
+    }catch *{
+        util:log("error", "telbib update failed."),
+        <div>Can't query telbib</div>
+    }
+let $res := ($res , $telbib_res)
+
+let $oidb-bibcodes := jmmc-tap:tap-adql-query("http://tap.jmmc.fr/vollt/tap/sync", "SELECT DISTINCT bib_reference from oidb",())//*:TD/text()
+let $res := ($res, if($existing-lib-names=$app:LIST-JMMC-OIDB) then () else adsabs:create-library($app:LIST-JMMC-OIDB,  "List of papers associated to published data in OiDB (automatically synchronized)", true(), () ) )
+let $res := ($res , app:check-update($fresh-libraries, $app:LIST-JMMC-OIDB, $oidb-bibcodes, false()))
+
+
+let $res := ( $res, for $tag in app:get-olbin()/publications/tag
+        let $bibcodes := $entries[tag=$tag]/bibcode
+        let $list-name := "tag-olbin "||$tag
+        where $list-name = $existing-lib-names
+        return app:check-update($fresh-libraries, $list-name, $bibcodes, false())
+    )
+
+(:  next lines could be skipped if not changes occur previously :)
+let $clear-libraries := cache:remove($adsabs:expirable-cache-name, "/biblib/libraries")
+let $ask-again := adsabs:get-libraries()
+
+return <pre>{$res}</pre>
+};
+
+(:return adsabs:get-libraries()?libraries?*[?name='olbin-refereed']:)
+(:for $list in $existing-lib-names:)
+(:    return $list:)
+(:return  count($entries//e) = $num_documents:)
 
 declare function app:oidb-table($node as node(), $model as map(*)) {
     let $olbin := app:get-olbin()
