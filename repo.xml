@@ -11,6 +11,12 @@
   <prepare>pre-install.xql</prepare>
   <finish/>
   <changelog>
+    <change xmlns="" version="0.8.2" >
+      <h3>2026-09-30</h3>
+      <ul>
+        <li>Small fix and improvements.</li>
+      </ul>
+    </change>
     <change xmlns="" version="0.8.1" >
       <h3>2026-06-12</h3>
       <ul>

@@ -14,6 +14,7 @@ import module namespace lib="http://exist-db.org/xquery/html-templating/lib";
  :)
 import module namespace config="http://olbin.org/exist/bibdb/config" at "config.xqm";
 import module namespace app="http://olbin.org/exist/bibdb/templates" at "app.xql";
+import module namespace tools="http://olbin.org/exist/bibdb/tools" at "tools.xql";
 import module namespace comments="http://olbin.org/exist/bibdb/comments" at "comments.xq";
 import module namespace jmmc-auth="http://exist.jmmc.fr/jmmc-resources/auth";
 

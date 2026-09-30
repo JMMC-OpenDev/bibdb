@@ -48,6 +48,26 @@ declare variable $app:expirable-cache := cache:create($app:expirable-cache-name,
 
 declare variable $app:telbib-vlti-url := "https://telbib.eso.org/api.php?telescope[]=vlti+visitor&amp;telescope[]=vlti";
 
+declare function app:library-as-select($library-name as xs:string, $selected-option as xs:string?, $add-none-option as xs:boolean?) {
+    let $public-libs := adsabs:get-libraries()?libraries?*[?public=true()]
+    return
+    <select name="{$library-name}">
+        {<option value="">-- none --</option>[$add-none-option]}
+        {
+        for $glib in $public-libs group by $prefix := tokenize($glib?name, "-")[1]
+        order by $prefix ascending
+        return
+            <optgroup label="{$prefix}">
+            {
+                for $lib in $glib
+                let $name := $lib?name
+                order by $name
+                return
+                    element {"option"} { if($name=$selected-option) then attribute {"selected"} {"true"} else (), attribute {"value"} {$name}, $name||" ("||$lib?num_documents||")"}
+            }
+            </optgroup>
+    }</select>
+};
 
 declare function app:plots($node as node(), $model as map(*)){
 <script src='https://cdn.plot.ly/plotly-2.26.0.min.js'></script>,
@@ -987,7 +1007,8 @@ declare function app:get-tag-consistency-map($reasons as xs:string*)  as map(*) 
 
     let $all := empty($reasons)
     let $curated-bibcodes := adsabs:library-get-bibcodes($app:LIST-OLBIN-TAG-CURATED)
-    let $entries := $olbin//e[not(bibcode=$curated-bibcodes)]
+    let $entries := $olbin//e
+    let $curated-entries := $olbin//e[not(bibcode=$curated-bibcodes)]
 
     let $ext-gravity-astro-references := adsabs:search-bibcodes(<q>property:refereed AND {adsabs:library-query("zfzX3gzHSWmP7E2uZ55D8A")}</q>)[not(.=$curated-bibcodes)]
     let $ext-gravity-instru-references := adsabs:search-bibcodes(<q>property:refereed AND {adsabs:library-query("EzuCSNqBT_-mglZwYxZWFg")}</q>)[not(.=$curated-bibcodes)]
@@ -998,58 +1019,58 @@ declare function app:get-tag-consistency-map($reasons as xs:string*)  as map(*) 
     let $li := map:merge((
         let $reason := 'Missing JMMC tag'
             return if ($all or $reason=$reasons) then
-                let $bibcodes := for $e in $entries[tag=$hidden-tags] where not($e/tag[.="JMMC"]) return $e/bibcode
+                let $bibcodes := for $e in $curated-entries[tag=$hidden-tags] where not($e/tag[.="JMMC"]) return $e/bibcode
                 return map:entry($reason,map{"label-tags": $hidden-tags,"bibcodes" : $bibcodes,"newtags": ("JMMC")}) else ()
         ,let $reason := 'Missing OiDB Data'
             return if ($all or $reason=$reasons) then
-                let $bibcodes :=  for $e in $entries[tag="oidb"] where not($e/bibcode=$oidb-references) return $e/bibcode
-                return map:entry($reason,map{"label-tags": $hidden-tags,"bibcodes" : $bibcodes,"newtags": ("oidb")}) else ()
+                let $bibcodes :=  for $e in $curated-entries[tag="OiDB"] where not($e/bibcode=$oidb-references) return $e/bibcode
+                return map:entry($reason,map{"label-tags": $hidden-tags,"bibcodes" : $bibcodes,"newtags": ("OiDB")}) else ()
         ,let $reason := 'Missing OiDB tag'
             return if ($all or $reason=$reasons) then
                 let $bibcodes :=  $oidb-references[not(.=$entries//bibcode)]
-                return map:entry($reason,map{"label-tags": $hidden-tags,"bibcodes" : $bibcodes,"newtags": ("oidb")}) else ()
+                return map:entry($reason,map{"label-tags": $hidden-tags,"bibcodes" : $bibcodes,"newtags": ("OiDB")}) else ()
         ,let $reason := 'Single tag'
             return if ($all or $reason=$reasons) then
-            let $bibcodes := for $e in $entries where count( $e/tag) = 1 return $e/bibcode
+            let $bibcodes := for $e in $curated-entries where count( $e/tag) = 1 return $e/bibcode
             return map:entry($reason,map{"bibcodes" : $bibcodes}) else ()
         ,let $reason := 'No tag'
             return if ($all or $reason=$reasons) then
-            let $bibcodes := for $e in $entries where not( $e/tag) return $e/bibcode
+            let $bibcodes := for $e in $curated-entries where not( $e/tag) return $e/bibcode
             return map:entry($reason,map{
                     "bibcodes" : $bibcodes}) else ()
         ,let $reason := 'Missing Main category tag'
             return if ($all or $reason=$reasons) then
-            let $bibcodes := for $e in $entries where not( $e/tag=$mainCategory-tags) return $e/bibcode
+            let $bibcodes := for $e in $curated-entries where not( $e/tag=$mainCategory-tags) return $e/bibcode
             return map:entry($reason,map{
                     "label-tags": $mainCategory-tags,
                     "bibcodes" : $bibcodes}) else ()
         ,let $reason := 'Missing facility or instrument, when not tagged Instrumentation'
             return if ($all or $reason=$reasons) then
-            let $bibcodes := for $e in $entries where not( $e/tag=($facility-or-instrument-tags,'Instrumentation')) return $e/bibcode
+            let $bibcodes := for $e in $curated-entries where not( $e/tag=($facility-or-instrument-tags,'Instrumentation')) return $e/bibcode
             return map:entry($reason,map{
                     "label-tags": $facility-or-instrument-tags,
                     "bibcodes" : $bibcodes}) else ()
         ,let $reason := 'Missing facility or instrument'
             return if ($all or $reason=$reasons) then
-            let $bibcodes := for $e in $entries where not( $e/tag=($facility-or-instrument-tags)) return $e/bibcode
+            let $bibcodes := for $e in $curated-entries where not( $e/tag=($facility-or-instrument-tags)) return $e/bibcode
             return map:entry($reason,map{
                     "label-tags": $facility-or-instrument-tags,
                     "bibcodes" : $bibcodes}) else ()
         ,let $reason := 'Missing facility when instrument is present'
             return if ($all or $reason=$reasons) then
-            let $bibcodes := for $e in $entries where $e/tag=$instrument-tags and not ($e/tag=($facility-tags)) return $e/bibcode
+            let $bibcodes := for $e in $curated-entries where $e/tag=$instrument-tags and not ($e/tag=($facility-tags)) return $e/bibcode
             return map:entry($reason,map{"bibcodes" : $bibcodes}) else ()
         ,let $reason := 'Missing facility, when instrument is present and not tagged Instrumentation'
             return if ($all or $reason=$reasons) then
-            let $bibcodes := for $e in $entries where $e/tag=$instrument-tags and not ($e/tag=($facility-tags,'Instrumentation')) return $e/bibcode
+            let $bibcodes := for $e in $curated-entries where $e/tag=$instrument-tags and not ($e/tag=($facility-tags,'Instrumentation')) return $e/bibcode
             return map:entry($reason,map{"bibcodes" : $bibcodes}) else ()
         ,let $reason := 'Stellar parameter tag is missing but Stellar diameter is present'
             return if ($all or $reason=$reasons) then
-            let $bibcodes := for $e in $entries where $e/tag="Stellar diameters" and not ($e/tag="Stellar parameters") return $e/bibcode
+            let $bibcodes := for $e in $curated-entries where $e/tag="Stellar diameters" and not ($e/tag="Stellar parameters") return $e/bibcode
             return map:entry($reason,map{"bibcodes" : $bibcodes,"newtags": ("Stellar parameters")}) else ()
         ,let $reason := 'Missing in GRAVITY library but in OLBIN'
             return if ($all or $reason=$reasons) then
-                let $bibcodes :=  for $e in $entries[tag="GRAVITY"] where not($e/bibcode=($ext-gravity-astro-references,$ext-gravity-instru-references)) return $e/bibcode
+                let $bibcodes :=  for $e in $curated-entries[tag="GRAVITY"] where not($e/bibcode=($ext-gravity-astro-references,$ext-gravity-instru-references)) return $e/bibcode
                 return map:entry($reason,map{"label-tags": $hidden-tags,"bibcodes" : $bibcodes}) else ()
         ,let $reason := 'Missing in OLBIN but in GRAVITY library'
             return if ($all or $reason=$reasons) then
@@ -1057,7 +1078,7 @@ declare function app:get-tag-consistency-map($reasons as xs:string*)  as map(*) 
                 return map:entry($reason,map{"label-tags": $hidden-tags,"bibcodes" : $bibcodes}) else ()
         ,let $reason := 'Missing in CHARA library but in OLBIN'
             return if ($all or $reason=$reasons) then
-                let $bibcodes :=  for $e in $entries[tag="CHARA"] where not($e/bibcode=($ext-gravity-astro-references,$ext-chara-references)) return $e/bibcode
+                let $bibcodes :=  for $e in $curated-entries[tag="CHARA"] where not($e/bibcode=($ext-gravity-astro-references,$ext-chara-references)) return $e/bibcode
                 return map:entry($reason,map{"label-tags": $hidden-tags,"bibcodes" : $bibcodes}) else ()
         ,let $reason := 'Missing in OLBIN but in CHARA library'
             return if ($all or $reason=$reasons) then
@@ -1065,7 +1086,7 @@ declare function app:get-tag-consistency-map($reasons as xs:string*)  as map(*) 
                 return map:entry($reason,map{"label-tags": $hidden-tags,"bibcodes" : $bibcodes}) else ()
         ,let $reason := 'Missing in telbib VLTI library but in OLBIN'
             return if ($all or $reason=$reasons) then
-                let $bibcodes :=  for $e in $entries[tag="VLTI" and tag="Astrophysical results"] where not($e/bibcode=($ext-telbib-vlti-references)) return $e/bibcode
+                let $bibcodes :=  for $e in $curated-entries[tag="VLTI" and tag="Astrophysical results"] where not($e/bibcode=($ext-telbib-vlti-references)) return $e/bibcode
                 return map:entry($reason,map{"label-tags": $hidden-tags,"bibcodes" : $bibcodes}) else ()
         ,let $reason := 'Missing in OLBIN but in telbib VLTI library'
             return if ($all or $reason=$reasons) then
@@ -1398,6 +1419,10 @@ declare function app:check-update($libraries, $list-name, $bibcodes as xs:string
             )
 };
 
+declare function app:sync-lists($node as node(), $model as map(*)) {
+    app:sync-lists(false())
+};
+
 declare function app:sync-lists(){
     app:sync-lists(false())
 };
@@ -1644,86 +1669,4 @@ declare function app:show-next-links($node as node(), $model as map(*)){
             $next-link
         else
             ()
-};
-
-declare function app:get-bibcodes($node as node(), $model as map(*), $library as xs:string?, $user-bibcodes as xs:string?){
-
-    let $lib-bibcodes := if(exists($library)) then reverse(sort(adsabs:library-get-bibcodes($library))) else ()
-    let $user-bibcodes := if(data($user-bibcodes)) then
-            let $bibcodes := translate($user-bibcodes, "&quot;&apos;","")
-            let $bibcodes := tokenize($bibcodes, ",")
-            let $bibcodes := for $b in $bibcodes return tokenize($b, ";")
-            let $bibcodes := for $b in $bibcodes return tokenize($b, "&#10;")
-            let $bibcodes := for $b in $bibcodes return normalize-space($b)
-            let $bibcodes := reverse(sort($bibcodes[data(.)]))
-            return $bibcodes
-            else ()
-
-    return (
-
-    if (exists($user-bibcodes) and exists($library)) then
-    <div>
-        {
-            <table class="table">
-                <tr>
-                    <th>in both lists:</th>
-                    <th>only in your list</th>
-                    <th>only in the library</th>
-                </tr>
-                <tr>
-                    <td><pre>{string-join($user-bibcodes[.=$lib-bibcodes], "&#10;")}</pre></td>
-                    <td><pre>{string-join($user-bibcodes[not(.=$lib-bibcodes)], "&#10;")}</pre></td>
-                    <td><pre>{string-join($lib-bibcodes[not(.=$user-bibcodes)], "&#10;")}</pre></td>
-                </tr>
-            </table>
-        }
-    </div>
-    else ()
-    ,
-    if (exists($library)) then
-    <div>
-        {
-            let $bibcodes := reverse(sort(adsabs:library-get-bibcodes($library)))
-            return
-            <div>
-                <h5>Bibcodes of '{$library}' list</h5>
-                <pre>
-                {string-join($bibcodes, "&#10;")}
-                </pre>
-            </div>
-        }
-    </div>
-    else (),
-    if( empty($library) or true() ) then
-    <div>
-        Choose the library you want to get bibcodes for:
-        <form>
-            <select name="library">
-            {
-                let $public-libs := adsabs:get-libraries()?libraries?*[?public=true()]
-
-                for $glib in $public-libs group by $prefix := tokenize($glib?name, "-")[1]
-                order by $prefix ascending
-                return
-                    <optgroup label="{$prefix}">
-                    {
-                        for $lib in $glib
-                        let $name := $lib?name
-                        order by $name
-                        return
-                         element {"option"} { if($name=$library) then attribute {"selected"} {"true"} else (), attribute {"value"} {$name}, $name||" ("||$lib?num_documents||")"}
-                    }
-                    </optgroup>
-
-            }
-            </select>
-            <input type="submit"/>
-            <br/>
-            Optional bibcodes list to check against selected list:
-            <textarea class="form-control" rows="5" name="user-bibcodes">{string-join($user-bibcodes, "&#10;")}</textarea>
-
-        </form>
-        </div>
-        else ()
-    )
 };
